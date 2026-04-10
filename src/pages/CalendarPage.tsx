@@ -363,7 +363,7 @@ function AppointmentDialog({
             </div>
             <div>
               <Label>Stato</Label>
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="confirmed">Confermato</SelectItem>
