@@ -14,7 +14,370 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          category: string
+          created_at: string
+          default_appointment_duration_minutes: number
+          id: string
+          logo_url: string | null
+          name: string
+          opening_days: number[]
+          opening_hours: Json
+          owner_name: string
+          slug: string
+          theme_color: string
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          default_appointment_duration_minutes?: number
+          id?: string
+          logo_url?: string | null
+          name: string
+          opening_days?: number[]
+          opening_hours?: Json
+          owner_name: string
+          slug: string
+          theme_color?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          default_appointment_duration_minutes?: number
+          id?: string
+          logo_url?: string | null
+          name?: string
+          opening_days?: number[]
+          opening_hours?: Json
+          owner_name?: string
+          slug?: string
+          theme_color?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      appointments: {
+        Row: {
+          activity_id: string
+          client_email: string | null
+          client_id: string | null
+          client_name: string | null
+          client_phone: string | null
+          color: string | null
+          created_at: string
+          date: string
+          duration_minutes: number
+          end_time: string
+          id: string
+          notes: string | null
+          service_id: string | null
+          start_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activity_id: string
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          color?: string | null
+          created_at?: string
+          date: string
+          duration_minutes: number
+          end_time: string
+          id?: string
+          notes?: string | null
+          service_id?: string | null
+          start_time: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          color?: string | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          end_time?: string
+          id?: string
+          notes?: string | null
+          service_id?: string | null
+          start_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      availability_blocks: {
+        Row: {
+          activity_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          notes: string | null
+          start_time: string
+          type: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          notes?: string | null
+          start_time: string
+          type?: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          notes?: string | null
+          start_time?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_blocks_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          activity_id: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          preferences: Json | null
+          updated_at: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packages: {
+        Row: {
+          activity_id: string
+          client_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          start_date: string | null
+          status: string
+          total_sessions: number
+          updated_at: string
+          used_sessions: number
+        }
+        Insert: {
+          activity_id: string
+          client_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          start_date?: string | null
+          status?: string
+          total_sessions: number
+          updated_at?: string
+          used_sessions?: number
+        }
+        Update: {
+          activity_id?: string
+          client_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          start_date?: string | null
+          status?: string
+          total_sessions?: number
+          updated_at?: string
+          used_sessions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packages_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packages_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      progress_entries: {
+        Row: {
+          activity_id: string
+          client_id: string
+          created_at: string
+          id: string
+          measurement_date: string
+          notes: string | null
+          photo_url: string | null
+          weight: number | null
+        }
+        Insert: {
+          activity_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          measurement_date?: string
+          notes?: string | null
+          photo_url?: string | null
+          weight?: number | null
+        }
+        Update: {
+          activity_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          measurement_date?: string
+          notes?: string | null
+          photo_url?: string | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_entries_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          activity_id: string
+          color: string
+          created_at: string
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          name: string
+          price: number | null
+        }
+        Insert: {
+          activity_id: string
+          color?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number | null
+        }
+        Update: {
+          activity_id?: string
+          color?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
