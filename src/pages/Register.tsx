@@ -21,7 +21,7 @@ const DAYS = [
 
 export default function Register() {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, refreshActivity } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -51,38 +51,45 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const { error } = await signUp(email, password);
+      const { error, session, user: createdUser } = await signUp(email, password);
       if (error) throw error;
 
-      // Wait briefly for auto-confirm session to establish
-      let session = (await supabase.auth.getSession()).data.session;
-      if (!session) {
-        // Retry after a short delay
-        await new Promise(r => setTimeout(r, 1500));
-        session = (await supabase.auth.getSession()).data.session;
-      }
-
-      if (!session) {
+      const authUserId = session?.user.id ?? createdUser?.id;
+      if (!authUserId) {
         toast.success('Controlla la tua email per confermare la registrazione');
         navigate('/login');
         return;
       }
 
-      const { error: actError } = await supabase.from('activities').insert({
-        user_id: session.user.id,
-        name: activityName,
-        slug: generateSlug(activityName),
-        category,
-        owner_name: ownerName,
-        opening_days: openingDays,
-        opening_hours: { start: openStart, end: openEnd },
-        theme_color: themeColor,
-        default_appointment_duration_minutes: defaultDuration,
-      });
+      const { data: existingActivity, error: existingActivityError } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('user_id', authUserId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      if (actError) throw actError;
+      if (existingActivityError) throw existingActivityError;
+
+      if (!existingActivity) {
+        const { error: actError } = await supabase.from('activities').insert({
+          user_id: authUserId,
+          name: activityName,
+          slug: generateSlug(activityName),
+          category,
+          owner_name: ownerName,
+          opening_days: openingDays,
+          opening_hours: { start: openStart, end: openEnd },
+          theme_color: themeColor,
+          default_appointment_duration_minutes: defaultDuration,
+        });
+
+        if (actError) throw actError;
+      }
+
+      await refreshActivity(authUserId);
       toast.success('Account creato con successo!');
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       toast.error(err.message || 'Errore durante la registrazione');
     } finally {
