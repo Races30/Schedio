@@ -54,8 +54,14 @@ export default function Register() {
       const { error } = await signUp(email, password);
       if (error) throw error;
 
-      // Wait for session
-      const { data: { session } } = await supabase.auth.getSession();
+      // Wait briefly for auto-confirm session to establish
+      let session = (await supabase.auth.getSession()).data.session;
+      if (!session) {
+        // Retry after a short delay
+        await new Promise(r => setTimeout(r, 1500));
+        session = (await supabase.auth.getSession()).data.session;
+      }
+
       if (!session) {
         toast.success('Controlla la tua email per confermare la registrazione');
         navigate('/login');
