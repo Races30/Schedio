@@ -20,7 +20,7 @@ export default function Login() {
     try {
       const { error } = await signIn(email, password);
       if (error) throw error;
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       toast.error(err.message || 'Credenziali non valide');
     } finally {
