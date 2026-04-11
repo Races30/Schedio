@@ -60,7 +60,7 @@ export default function Landing() {
         <div className="container mx-auto text-center max-w-3xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-              <Star className="w-4 h-4" /> Gratuito per sempre • Nessuna carta richiesta
+              <Star className="w-4 h-4" /> Inizia subito • Nessuna carta richiesta
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-foreground leading-tight mb-6">
               Gestisci il tuo business<br />
