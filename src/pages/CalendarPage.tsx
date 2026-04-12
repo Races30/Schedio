@@ -1,16 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Appointment, Client, Service } from '@/types';
+import { Appointment, Client, Service, Employee } from '@/types';
 import { formatTime, generateTimeSlots, addMinutesToTime, getDayNameShort } from '@/utils/dateHelpers';
 import { toast } from 'sonner';
 
@@ -24,6 +24,7 @@ export default function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
   const [editAppt, setEditAppt] = useState<Appointment | null>(null);
+  const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -67,11 +68,20 @@ export default function CalendarPage() {
     enabled: !!activity,
   });
 
-  const hours = activity ? generateTimeSlots(
-    activity.opening_hours.start,
-    activity.opening_hours.end,
-    30
-  ) : [];
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees', activity?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('employees').select('*').eq('activity_id', activity!.id).order('name');
+      return (data || []) as Employee[];
+    },
+    enabled: !!activity,
+  });
+
+  const filteredAppts = filterEmployeeId === 'all'
+    ? appointments
+    : appointments.filter(a => a.employee_id === filterEmployeeId);
+
+  const hours = activity ? generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, 30) : [];
 
   const navigateDate = (dir: number) => {
     setCurrentDate(prev => addDays(prev, dir * (viewMode === 'day' ? 1 : 7)));
@@ -91,7 +101,7 @@ export default function CalendarPage() {
 
   const getApptsForSlot = (day: Date, time: string) => {
     const dateStr = format(day, 'yyyy-MM-dd');
-    return appointments.filter(a => a.date === dateStr && a.start_time <= time && a.end_time > time);
+    return filteredAppts.filter(a => a.date === dateStr && a.start_time <= time && a.end_time > time);
   };
 
   const statusColor = (status: string) => {
@@ -107,41 +117,40 @@ export default function CalendarPage() {
   const now = new Date();
   const currentTimeStr = format(now, 'HH:mm');
 
+  const getEmployeeForAppt = (appt: Appointment) => employees.find(e => e.id === appt.employee_id);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+          <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}><ChevronLeft className="w-4 h-4" /></Button>
           <h1 className="text-xl font-bold">
             {viewMode === 'day'
               ? format(currentDate, 'EEEE dd MMMM yyyy', { locale: it })
-              : `${format(weekDays[0], 'dd MMM', { locale: it })} - ${format(weekDays[6], 'dd MMM yyyy', { locale: it })}`
-            }
+              : `${format(weekDays[0], 'dd MMM', { locale: it })} - ${format(weekDays[6], 'dd MMM yyyy', { locale: it })}`}
           </h1>
-          <Button variant="outline" size="icon" onClick={() => navigateDate(1)}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <Button variant="outline" size="icon" onClick={() => navigateDate(1)}><ChevronRight className="w-4 h-4" /></Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {employees.length > 0 && (
+            <Select value={filterEmployeeId} onValueChange={setFilterEmployeeId}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name} {e.surname}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Oggi</Button>
           <div className="inline-flex bg-muted rounded-lg p-1">
-            <button onClick={() => setViewMode('day')} className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-              Giorno
-            </button>
-            <button onClick={() => setViewMode('week')} className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-              Settimana
-            </button>
+            <button onClick={() => setViewMode('day')} className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>Giorno</button>
+            <button onClick={() => setViewMode('week')} className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>Settimana</button>
           </div>
         </div>
       </div>
 
-      {/* Calendar Grid */}
       <div className="glass-card overflow-x-auto">
         <div className={`min-w-[600px] ${viewMode === 'day' ? 'min-w-[400px]' : ''}`}>
-          {/* Day headers */}
           <div className={`grid border-b border-border ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}>
             <div className="p-2" />
             {displayDays.map((day, i) => {
@@ -155,7 +164,6 @@ export default function CalendarPage() {
             })}
           </div>
 
-          {/* Time slots */}
           {hours.map((time) => (
             <div key={time} className={`grid border-b border-border/50 ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}>
               <div className="p-2 text-xs text-muted-foreground text-right pr-3 py-3 relative">
@@ -175,21 +183,19 @@ export default function CalendarPage() {
                     className={`border-l border-border/50 min-h-[48px] p-0.5 cursor-pointer hover:bg-primary/5 transition-colors relative ${isNow ? 'bg-primary/5' : ''}`}>
                     {slotAppts.filter(a => a.start_time === time).map(appt => {
                       const durationSlots = Math.ceil(appt.duration_minutes / 30);
+                      const emp = getEmployeeForAppt(appt);
+                      const apptColor = emp?.color || appt.color || appt.service?.color || '#3b82f6';
                       return (
                         <div key={appt.id}
                           onClick={(e) => { e.stopPropagation(); openEditAppt(appt); }}
                           className={`rounded-md p-1.5 text-xs cursor-pointer hover:opacity-80 ${statusColor(appt.status)}`}
-                          style={{
-                            backgroundColor: (appt.color || appt.service?.color || '#3b82f6') + '20',
-                            height: `${durationSlots * 48 - 4}px`,
-                            position: 'relative',
-                            zIndex: 10,
-                          }}>
-                          <div className="font-medium truncate" style={{ color: appt.color || appt.service?.color || '#3b82f6' }}>
+                          style={{ backgroundColor: apptColor + '20', height: `${durationSlots * 48 - 4}px`, position: 'relative', zIndex: 10 }}>
+                          <div className="font-medium truncate" style={{ color: apptColor }}>
                             {appt.client?.name || appt.client_name || 'Cliente'}
                           </div>
                           <div className="truncate text-muted-foreground">
                             {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
+                            {emp && <span className="ml-1">• {emp.name}</span>}
                           </div>
                         </div>
                       );
@@ -202,7 +208,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Appointment Dialog */}
       <AppointmentDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -212,22 +217,24 @@ export default function CalendarPage() {
         activity={activity!}
         clients={clients}
         services={services}
+        employees={employees}
       />
     </div>
   );
 }
 
 function AppointmentDialog({
-  open, onClose, appointment, defaultDate, defaultTime, activity, clients, services
+  open, onClose, appointment, defaultDate, defaultTime, activity, clients, services, employees
 }: {
   open: boolean; onClose: () => void; appointment: Appointment | null;
   defaultDate: string; defaultTime: string;
   activity: NonNullable<ReturnType<typeof useAuth>['activity']>;
-  clients: Client[]; services: Service[];
+  clients: Client[]; services: Service[]; employees: Employee[];
 }) {
   const queryClient = useQueryClient();
   const [clientId, setClientId] = useState(appointment?.client_id || '');
   const [serviceId, setServiceId] = useState(appointment?.service_id || '');
+  const [employeeId, setEmployeeId] = useState(appointment?.employee_id || '');
   const [date, setDate] = useState(appointment?.date || defaultDate);
   const [startTime, setStartTime] = useState(appointment?.start_time?.slice(0, 5) || defaultTime);
   const [duration, setDuration] = useState(appointment?.duration_minutes || activity.default_appointment_duration_minutes);
@@ -238,11 +245,11 @@ function AppointmentDialog({
 
   const endTime = addMinutesToTime(startTime, duration);
 
-  // Reset form when dialog opens
   useState(() => {
     if (open) {
       setClientId(appointment?.client_id || '');
       setServiceId(appointment?.service_id || '');
+      setEmployeeId(appointment?.employee_id || '');
       setDate(appointment?.date || defaultDate);
       setStartTime(appointment?.start_time?.slice(0, 5) || defaultTime);
       setDuration(appointment?.duration_minutes || activity.default_appointment_duration_minutes);
@@ -267,6 +274,7 @@ function AppointmentDialog({
         activity_id: activity.id,
         client_id: clientId || null,
         service_id: serviceId || null,
+        employee_id: employeeId || null,
         date,
         start_time: startTime,
         end_time: endTime,
@@ -330,12 +338,9 @@ function AppointmentDialog({
             </div>
           )}
           {!clientId && (
-            <div>
-              <Label>Nome cliente</Label>
-              <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome cliente" />
-            </div>
+            <div><Label>Nome cliente</Label><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome cliente" /></div>
           )}
-          {activity.category === 'salone' && services.length > 0 && (
+          {services.length > 0 && (
             <div>
               <Label>Servizio</Label>
               <Select value={serviceId} onValueChange={handleServiceChange}>
@@ -346,21 +351,23 @@ function AppointmentDialog({
               </Select>
             </div>
           )}
+          {employees.length > 0 && (
+            <div>
+              <Label>Dipendente</Label>
+              <Select value={employeeId} onValueChange={setEmployeeId}>
+                <SelectTrigger><SelectValue placeholder="Nessuna preferenza" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name} {e.surname}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Data</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Orario</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
-            </div>
+            <div><Label>Data</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div><Label>Orario</Label><Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Durata (min)</Label>
-              <Input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} min={5} step={5} />
-            </div>
+            <div><Label>Durata (min)</Label><Input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} min={5} step={5} /></div>
             <div>
               <Label>Stato</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
@@ -374,17 +381,10 @@ function AppointmentDialog({
               </Select>
             </div>
           </div>
-          <div>
-            <Label>Note</Label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" />
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Fine prevista: {endTime}
-          </div>
+          <div><Label>Note</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" /></div>
+          <div className="text-sm text-muted-foreground">Fine prevista: {endTime}</div>
           <div className="flex gap-2">
-            {appointment && (
-              <Button variant="destructive" onClick={deleteAppt} disabled={loading}>Elimina</Button>
-            )}
+            {appointment && <Button variant="destructive" onClick={deleteAppt} disabled={loading}>Elimina</Button>}
             <Button variant="hero" onClick={save} disabled={loading} className="flex-1">
               {loading ? 'Salvataggio...' : appointment ? 'Aggiorna' : 'Crea'}
             </Button>

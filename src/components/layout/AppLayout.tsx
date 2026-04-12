@@ -29,7 +29,6 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar desktop */}
       <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col">
         <div className="p-4 border-b border-border">
           <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
@@ -43,7 +42,7 @@ export default function AppLayout() {
               {item.label}
             </Link>
           ))}
-          <a href={`/book/${activity.slug}`} target="_blank" rel="noopener noreferrer"
+          <a href={`/${activity.slug}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
             <ExternalLink className="w-5 h-5" />
             Pagina pubblica
@@ -56,7 +55,6 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* Mobile header */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
           <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
@@ -65,7 +63,6 @@ export default function AppLayout() {
           </Button>
         </header>
 
-        {/* Mobile menu */}
         {mobileOpen && (
           <div className="md:hidden bg-card border-b border-border p-3 space-y-1">
             {navItems.map(item => (
