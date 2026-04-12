@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
 
-    const nextActivity = (data as Activity | null) ?? null;
+    const nextActivity = data ? (data as unknown as Activity) : null;
     setActivity(nextActivity);
     return nextActivity;
   }, []);
@@ -65,12 +65,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshActivity = useCallback(async (userId?: string) => {
     const targetUserId = userId ?? user?.id;
-
     if (!targetUserId) {
       setActivity(null);
       return null;
     }
-
     setLoading(true);
     const nextActivity = await fetchActivity(targetUserId);
     setLoading(false);
@@ -99,27 +97,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
+      options: { emailRedirectTo: window.location.origin },
     });
-
-    return {
-      error: error as Error | null,
-      session: data.session ?? null,
-      user: data.user ?? null,
-    };
+    return { error: error as Error | null, session: data.session ?? null, user: data.user ?? null };
   };
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    return {
-      error: error as Error | null,
-      session: data.session ?? null,
-      user: data.user ?? null,
-    };
+    return { error: error as Error | null, session: data.session ?? null, user: data.user ?? null };
   };
 
   const signOut = async () => {

@@ -1,5 +1,3 @@
-export type ActivityCategory = 'salone' | 'coach';
-
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed';
 
 export interface Activity {
@@ -7,7 +5,7 @@ export interface Activity {
   user_id: string;
   name: string;
   slug: string;
-  category: ActivityCategory;
+  category: string;
   owner_name: string;
   timezone: string;
   opening_days: number[];
@@ -15,6 +13,7 @@ export interface Activity {
   theme_color: string;
   logo_url: string | null;
   default_appointment_duration_minutes: number;
+  buffer_minutes: number;
   created_at: string;
   updated_at: string;
 }
@@ -42,11 +41,31 @@ export interface Service {
   created_at: string;
 }
 
+export interface Employee {
+  id: string;
+  activity_id: string;
+  name: string;
+  surname: string;
+  slug: string;
+  token: string;
+  role: string;
+  color: string;
+  is_owner: boolean;
+  created_at: string;
+}
+
+export interface EmployeeService {
+  id: string;
+  employee_id: string;
+  service_id: string;
+}
+
 export interface Appointment {
   id: string;
   activity_id: string;
   client_id: string | null;
   service_id: string | null;
+  employee_id: string | null;
   date: string;
   start_time: string;
   end_time: string;
@@ -62,34 +81,7 @@ export interface Appointment {
   // joined
   client?: Client;
   service?: Service;
-}
-
-export interface Package {
-  id: string;
-  activity_id: string;
-  client_id: string;
-  name: string;
-  total_sessions: number;
-  used_sessions: number;
-  start_date: string | null;
-  end_date: string | null;
-  status: 'active' | 'expired' | 'completed';
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  client?: Client;
-}
-
-export interface ProgressEntry {
-  id: string;
-  activity_id: string;
-  client_id: string;
-  weight: number | null;
-  notes: string | null;
-  photo_url: string | null;
-  measurement_date: string;
-  created_at: string;
+  employee?: Employee;
 }
 
 export interface AvailabilityBlock {
