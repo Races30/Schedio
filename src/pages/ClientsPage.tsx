@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Phone, Mail, MoreVertical, Trash2, Edit } from 'lucide-react';
-import { Client, Appointment, Package as Pkg } from '@/types';
+import { Plus, Search, Phone, Mail, Edit } from 'lucide-react';
+import { Client, Appointment } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatTime } from '@/utils/dateHelpers';
 
@@ -79,20 +79,10 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <ClientDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        client={editClient}
-        activityId={activity?.id || ''}
-      />
+      <ClientDialog open={dialogOpen} onClose={() => setDialogOpen(false)} client={editClient} activityId={activity?.id || ''} />
 
       {detailClient && (
-        <ClientDetailDialog
-          client={detailClient}
-          onClose={() => setDetailClient(null)}
-          activityId={activity?.id || ''}
-          category={activity?.category || 'salone'}
-        />
+        <ClientDetailDialog client={detailClient} onClose={() => setDetailClient(null)} activityId={activity?.id || ''} />
       )}
     </div>
   );
@@ -144,7 +134,6 @@ function ClientDialog({ open, onClose, client, activityId }: {
     }
   };
 
-  // Reset on open
   useState(() => {
     setName(client?.name || '');
     setPhone(client?.phone || '');
@@ -159,22 +148,10 @@ function ClientDialog({ open, onClose, client, activityId }: {
           <DialogTitle>{client ? 'Modifica cliente' : 'Nuovo cliente'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <Label>Nome *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome e cognome" />
-          </div>
-          <div>
-            <Label>Telefono</Label>
-            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 123 456 7890" />
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" />
-          </div>
-          <div>
-            <Label>Note</Label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" />
-          </div>
+          <div><Label>Nome *</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome e cognome" /></div>
+          <div><Label>Telefono</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 123 456 7890" /></div>
+          <div><Label>Email</Label><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" /></div>
+          <div><Label>Note</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" /></div>
           <div className="flex gap-2">
             {client && <Button variant="destructive" onClick={deleteClient} disabled={loading}>Elimina</Button>}
             <Button variant="hero" onClick={save} disabled={loading} className="flex-1">
@@ -187,8 +164,8 @@ function ClientDialog({ open, onClose, client, activityId }: {
   );
 }
 
-function ClientDetailDialog({ client, onClose, activityId, category }: {
-  client: Client; onClose: () => void; activityId: string; category: string;
+function ClientDetailDialog({ client, onClose, activityId }: {
+  client: Client; onClose: () => void; activityId: string;
 }) {
   const { data: appointments = [] } = useQuery({
     queryKey: ['client-appointments', client.id],
@@ -203,19 +180,6 @@ function ClientDetailDialog({ client, onClose, activityId, category }: {
     },
   });
 
-  const { data: packages = [] } = useQuery({
-    queryKey: ['client-packages', client.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('packages')
-        .select('*')
-        .eq('client_id', client.id)
-        .order('created_at', { ascending: false });
-      return (data || []) as Pkg[];
-    },
-    enabled: category === 'coach',
-  });
-
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
@@ -227,36 +191,12 @@ function ClientDetailDialog({ client, onClose, activityId, category }: {
             {client.name}
           </DialogTitle>
         </DialogHeader>
-
         <div className="space-y-6">
-          {/* Contact info */}
           <div className="space-y-2">
             {client.phone && <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground" /> {client.phone}</div>}
             {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /> {client.email}</div>}
             {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
           </div>
-
-          {/* Packages (coach) */}
-          {category === 'coach' && packages.length > 0 && (
-            <div>
-              <h3 className="font-semibold mb-2">Pacchetti</h3>
-              <div className="space-y-2">
-                {packages.map(p => (
-                  <div key={p.id} className="bg-muted/50 rounded-lg p-3">
-                    <div className="font-medium text-sm">{p.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {p.used_sessions}/{p.total_sessions} sessioni usate • {p.total_sessions - p.used_sessions} rimanenti
-                    </div>
-                    <span className={`status-badge mt-1 ${p.status === 'active' ? 'status-confirmed' : p.status === 'expired' ? 'status-cancelled' : 'status-completed'}`}>
-                      {p.status === 'active' ? 'Attivo' : p.status === 'expired' ? 'Scaduto' : 'Completato'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Appointment history */}
           <div>
             <h3 className="font-semibold mb-2">Storico appuntamenti</h3>
             {appointments.length === 0 ? (
@@ -267,7 +207,7 @@ function ClientDetailDialog({ client, onClose, activityId, category }: {
                   <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
                     <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
                     <div className="flex-1">
-                      <div className="text-sm font-medium">{a.service?.name || 'Sessione'}</div>
+                      <div className="text-sm font-medium">{a.service?.name || 'Appuntamento'}</div>
                       <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
                     </div>
                     <span className={`status-badge status-${a.status}`}>

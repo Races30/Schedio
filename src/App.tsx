@@ -12,6 +12,7 @@ import CalendarPage from "./pages/CalendarPage";
 import ClientsPage from "./pages/ClientsPage";
 import SettingsPage from "./pages/SettingsPage";
 import PublicBooking from "./pages/PublicBooking";
+import EmployeePage from "./pages/EmployeePage";
 import AppLayout from "./components/layout/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -28,13 +29,14 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/book/:slug" element={<PublicBooking />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
+            <Route path="/:slug/:slugAndToken" element={<EmployeePage />} />
+            <Route path="/:slug" element={<PublicBooking />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
