@@ -20,6 +20,7 @@ export type Database = {
           category: string
           created_at: string
           default_appointment_duration_minutes: number
+          host_works_in_salon: boolean
           id: string
           logo_url: string | null
           name: string
@@ -37,6 +38,7 @@ export type Database = {
           category: string
           created_at?: string
           default_appointment_duration_minutes?: number
+          host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
           name: string
@@ -54,6 +56,7 @@ export type Database = {
           category?: string
           created_at?: string
           default_appointment_duration_minutes?: number
+          host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
           name?: string
@@ -71,6 +74,7 @@ export type Database = {
       appointments: {
         Row: {
           activity_id: string
+          buffer_time_minutes: number
           client_email: string | null
           client_id: string | null
           client_name: string | null
@@ -90,6 +94,7 @@ export type Database = {
         }
         Insert: {
           activity_id: string
+          buffer_time_minutes?: number
           client_email?: string | null
           client_id?: string | null
           client_name?: string | null
@@ -109,6 +114,7 @@ export type Database = {
         }
         Update: {
           activity_id?: string
+          buffer_time_minutes?: number
           client_email?: string | null
           client_id?: string | null
           client_name?: string | null
@@ -281,36 +287,42 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          is_active: boolean
           is_owner: boolean
           name: string
           role: string
           slug: string
           surname: string
           token: string
+          updated_at: string
         }
         Insert: {
           activity_id: string
           color?: string
           created_at?: string
           id?: string
+          is_active?: boolean
           is_owner?: boolean
           name: string
           role?: string
           slug: string
           surname: string
           token: string
+          updated_at?: string
         }
         Update: {
           activity_id?: string
           color?: string
           created_at?: string
           id?: string
+          is_active?: boolean
           is_owner?: boolean
           name?: string
           role?: string
           slug?: string
           surname?: string
           token?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -435,31 +447,37 @@ export type Database = {
           activity_id: string
           color: string
           created_at: string
+          description: string | null
           duration_minutes: number
           id: string
           is_active: boolean
           name: string
           price: number | null
+          updated_at: string
         }
         Insert: {
           activity_id: string
           color?: string
           created_at?: string
+          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
           name: string
           price?: number | null
+          updated_at?: string
         }
         Update: {
           activity_id?: string
           color?: string
           created_at?: string
+          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
           name?: string
           price?: number | null
+          updated_at?: string
         }
         Relationships: [
           {

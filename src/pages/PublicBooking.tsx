@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { format, addDays, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { generateTimeSlots, addMinutesToTime, formatTime, getDayName } from '@/utils/dateHelpers';
+import { filterBookableEmployees } from '@/utils/salonEmployees';
 import { toast } from 'sonner';
 import { Calendar, Clock, CheckCircle2, ChevronLeft, MapPin, Phone, Mail, Shield, Zap, Award, ChevronDown, Scissors, User } from 'lucide-react';
 
@@ -48,7 +49,7 @@ export default function PublicBooking() {
     enabled: !!activity,
   });
 
-  const { data: employees = [] } = useQuery({
+  const { data: employeesRaw = [] } = useQuery({
     queryKey: ['public-employees', activity?.id],
     queryFn: async () => {
       const { data } = await supabase.from('employees').select('*').eq('activity_id', activity!.id).order('name');
@@ -57,30 +58,42 @@ export default function PublicBooking() {
     enabled: !!activity,
   });
 
+  const staff = useMemo(
+    () => (activity ? filterBookableEmployees(employeesRaw, activity) : []),
+    [employeesRaw, activity]
+  );
+
   const { data: employeeServices = [] } = useQuery({
     queryKey: ['public-employee-services', activity?.id],
     queryFn: async () => {
-      const empIds = employees.map(e => e.id);
+      const empIds = staff.map((e) => e.id);
       if (empIds.length === 0) return [];
       const { data } = await supabase.from('employee_services').select('*').in('employee_id', empIds);
       return (data || []) as EmployeeService[];
     },
-    enabled: employees.length > 0,
+    enabled: staff.length > 0 && !!activity,
   });
 
-  // Employees that can do selected service
   const compatibleEmployees = useMemo(() => {
-    if (!selectedService) return employees;
-    const empIds = employeeServices.filter(es => es.service_id === selectedService.id).map(es => es.employee_id);
-    const filtered = employees.filter(e => empIds.includes(e.id));
-    return filtered.length > 0 ? filtered : employees; // fallback to all if no assignments
-  }, [selectedService, employees, employeeServices]);
+    if (!selectedService) return staff;
+    const empIds = employeeServices.filter((es) => es.service_id === selectedService.id).map((es) => es.employee_id);
+    const filtered = staff.filter((e) => empIds.includes(e.id));
+    return filtered.length > 0 ? filtered : staff;
+  }, [selectedService, staff, employeeServices]);
+
+  useEffect(() => {
+    if (step === 1 && services.length === 0 && activity) setStep(2);
+  }, [step, services.length, activity]);
 
   const { data: existingAppts = [] } = useQuery({
     queryKey: ['public-appointments', activity?.id, selectedDate, selectedEmployee?.id, noPreference],
     queryFn: async () => {
-      let query = supabase.from('appointments').select('start_time, end_time, duration_minutes, employee_id')
-        .eq('activity_id', activity!.id).eq('date', selectedDate).neq('status', 'cancelled');
+      let query = supabase
+        .from('appointments')
+        .select('start_time, end_time, duration_minutes, employee_id')
+        .eq('activity_id', activity!.id)
+        .eq('date', selectedDate)
+        .neq('status', 'cancelled');
       if (selectedEmployee && !noPreference) {
         query = query.eq('employee_id', selectedEmployee.id);
       }
@@ -104,19 +117,58 @@ export default function PublicBooking() {
     return dates;
   }, [activity]);
 
+  const slotConflictsForEmployee = (
+    slot: string,
+    empId: string,
+    appts: Pick<Appointment, 'start_time' | 'end_time' | 'employee_id'>[]
+  ) => {
+    const slotEnd = addMinutesToTime(slot, duration);
+    return appts
+      .filter((a) => a.employee_id === empId)
+      .some((a) => {
+        const aStart = formatTime(a.start_time);
+        const aEnd = addMinutesToTime(formatTime(a.end_time), bufferMinutes);
+        return slot < aEnd && slotEnd > aStart;
+      });
+  };
+
   const availableSlots = useMemo(() => {
     if (!activity || !selectedDate) return [];
     const allSlots = generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, 30);
-    return allSlots.filter(slot => {
+    return allSlots.filter((slot) => {
       const slotEnd = addMinutesToTime(slot, duration + bufferMinutes);
       if (slotEnd > activity.opening_hours.end) return false;
-      return !existingAppts.some(a => {
-        const aStart = a.start_time.slice(0, 5);
-        const aEnd = addMinutesToTime(a.end_time.slice(0, 5), bufferMinutes);
-        return slot < aEnd && addMinutesToTime(slot, duration) > aStart;
+
+      if (noPreference && compatibleEmployees.length > 0) {
+        return compatibleEmployees.some(
+          (emp) => !slotConflictsForEmployee(slot, emp.id, existingAppts)
+        );
+      }
+      if (selectedEmployee && !noPreference) {
+        return !slotConflictsForEmployee(slot, selectedEmployee.id, existingAppts);
+      }
+      if (compatibleEmployees.length > 0) {
+        return compatibleEmployees.some(
+          (emp) => !slotConflictsForEmployee(slot, emp.id, existingAppts)
+        );
+      }
+      return !existingAppts.some((a) => {
+        const aStart = formatTime(a.start_time);
+        const aEnd = addMinutesToTime(formatTime(a.end_time), bufferMinutes);
+        const end = addMinutesToTime(slot, duration);
+        return slot < aEnd && end > aStart;
       });
     });
-  }, [activity, selectedDate, existingAppts, duration, bufferMinutes]);
+  }, [
+    activity,
+    selectedDate,
+    existingAppts,
+    duration,
+    bufferMinutes,
+    noPreference,
+    compatibleEmployees,
+    selectedEmployee,
+  ]);
 
   const scrollToBooking = () => {
     setStep(1);
@@ -125,27 +177,52 @@ export default function PublicBooking() {
 
   const handleBook = async () => {
     if (!activity || !selectedDate || !selectedTime || !clientName) return;
+    if (staff.length === 0) {
+      toast.error('Prenotazione non disponibile: nessun operatore attivo.');
+      return;
+    }
     setLoading(true);
     try {
       const endTime = addMinutesToTime(selectedTime, duration);
-      let assignedEmployeeId = selectedEmployee?.id || null;
+      let assignedEmployeeId: string | null = selectedEmployee?.id || null;
 
-      // Auto-assign if no preference
+      const freeAtTime = compatibleEmployees.filter(
+        (e) => !slotConflictsForEmployee(selectedTime, e.id, existingAppts)
+      );
+
       if (noPreference && compatibleEmployees.length > 0) {
-        // Pick employee with fewest appointments on that date
-        const counts = new Map<string, number>();
-        compatibleEmployees.forEach(e => counts.set(e.id, 0));
-        existingAppts.forEach(a => {
-          if (a.employee_id && counts.has(a.employee_id)) {
-            counts.set(a.employee_id, (counts.get(a.employee_id) || 0) + 1);
-          }
-        });
-        let minCount = Infinity;
-        let minEmpId = compatibleEmployees[0].id;
-        counts.forEach((count, empId) => {
-          if (count < minCount) { minCount = count; minEmpId = empId; }
-        });
-        assignedEmployeeId = minEmpId;
+        if (freeAtTime.length > 0) {
+          const counts = new Map<string, number>();
+          freeAtTime.forEach((e) => counts.set(e.id, 0));
+          existingAppts.forEach((a) => {
+            if (a.employee_id && counts.has(a.employee_id)) {
+              counts.set(a.employee_id, (counts.get(a.employee_id) || 0) + 1);
+            }
+          });
+          let minCount = Infinity;
+          let minEmpId = freeAtTime[0].id;
+          counts.forEach((count, empId) => {
+            if (count < minCount) {
+              minCount = count;
+              minEmpId = empId;
+            }
+          });
+          assignedEmployeeId = minEmpId;
+        } else {
+          assignedEmployeeId = null;
+        }
+      }
+
+      if (!assignedEmployeeId) {
+        toast.error('Nessun operatore libero in questo orario. Scegli un altro orario.');
+        setLoading(false);
+        return;
+      }
+
+      if (slotConflictsForEmployee(selectedTime, assignedEmployeeId, existingAppts)) {
+        toast.error('Questo orario non è più disponibile. Torna indietro e scegli un altro slot.');
+        setLoading(false);
+        return;
       }
 
       const { error } = await supabase.from('appointments').insert({
@@ -154,6 +231,7 @@ export default function PublicBooking() {
         start_time: selectedTime,
         end_time: endTime,
         duration_minutes: duration,
+        buffer_time_minutes: bufferMinutes,
         status: 'pending',
         client_name: clientName,
         client_phone: clientPhone || null,
@@ -246,11 +324,11 @@ export default function PublicBooking() {
           <p className="text-muted-foreground leading-relaxed">
             Benvenuto da {activity.name}! Il nostro team di professionisti è pronto ad accoglierti con servizi di qualità in un ambiente curato e accogliente. Prenota il tuo appuntamento online e lascia che ci prendiamo cura di te.
           </p>
-          {employees.length > 0 && (
+          {staff.length > 0 && (
             <div className="mt-8">
               <h3 className="text-lg font-semibold mb-3">Il nostro team</h3>
               <div className="flex flex-wrap gap-3">
-                {employees.map(emp => (
+                {staff.map(emp => (
                   <div key={emp.id} className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: emp.color }} />
                     <span className="text-sm font-medium">{emp.name} {emp.surname}</span>
@@ -351,10 +429,19 @@ export default function PublicBooking() {
               </div>
             )}
 
-            {step === 1 && services.length === 0 && (() => { setStep(2); return null; })()}
-
             {/* Step 2: Employee */}
-            {step === 2 && (
+            {step === 2 && staff.length === 0 && (
+              <div>
+                <button onClick={() => setStep(services.length > 0 ? 1 : 0)} className="text-sm text-primary hover:underline mb-4 flex items-center gap-1">
+                  <ChevronLeft className="w-4 h-4" /> Indietro
+                </button>
+                <p className="text-sm text-destructive">
+                  Al momento non è possibile prenotare online: non ci sono operatori attivi. Contatta il salone direttamente.
+                </p>
+              </div>
+            )}
+
+            {step === 2 && staff.length > 0 && (
               <div>
                 <button onClick={() => setStep(services.length > 0 ? 1 : 0)} className="text-sm text-primary hover:underline mb-4 flex items-center gap-1">
                   <ChevronLeft className="w-4 h-4" /> Indietro
@@ -364,7 +451,7 @@ export default function PublicBooking() {
                   <button onClick={() => { setNoPreference(true); setSelectedEmployee(null); setStep(3); }}
                     className="w-full text-left p-4 rounded-lg border border-border hover:border-primary/50 transition-colors">
                     <div className="font-medium">Nessuna preferenza</div>
-                    <div className="text-sm text-muted-foreground">Il primo disponibile</div>
+                    <div className="text-sm text-muted-foreground">Il primo disponibile tra chi può eseguire il servizio</div>
                   </button>
                   {compatibleEmployees.map(emp => (
                     <button key={emp.id} onClick={() => { setSelectedEmployee(emp); setNoPreference(false); setStep(3); }}

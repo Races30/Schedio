@@ -7,6 +7,8 @@ export interface Activity {
   slug: string;
   category: string;
   owner_name: string;
+  /** When true, the owner has an employee row and can be assigned like other staff */
+  host_works_in_salon?: boolean;
   timezone: string;
   opening_days: number[];
   opening_hours: { start: string; end: string };
@@ -38,7 +40,9 @@ export interface Service {
   price: number | null;
   color: string;
   is_active: boolean;
+  description: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Employee {
@@ -51,7 +55,9 @@ export interface Employee {
   role: string;
   color: string;
   is_owner: boolean;
+  is_active?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface EmployeeService {
@@ -70,6 +76,7 @@ export interface Appointment {
   start_time: string;
   end_time: string;
   duration_minutes: number;
+  buffer_time_minutes?: number;
   status: AppointmentStatus;
   color: string | null;
   notes: string | null;

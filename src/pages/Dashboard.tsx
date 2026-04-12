@@ -1,16 +1,20 @@
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatTime, formatDateRelative } from '@/utils/dateHelpers';
 import { Appointment, Client, Employee } from '@/types';
 import { motion } from 'framer-motion';
+import { filterBookableEmployees, employeeDisplayLabel } from '@/utils/salonEmployees';
 
 export default function Dashboard() {
   const { activity } = useAuth();
   const navigate = useNavigate();
+  const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
   const today = new Date().toISOString().split('T')[0];
 
   const { data: todayAppts = [] } = useQuery({
@@ -52,7 +56,7 @@ export default function Dashboard() {
     enabled: !!activity,
   });
 
-  const { data: employees = [] } = useQuery({
+  const { data: employeesRaw = [] } = useQuery({
     queryKey: ['employees', activity?.id],
     queryFn: async () => {
       const { data } = await supabase.from('employees').select('*').eq('activity_id', activity!.id).order('is_owner', { ascending: false });
@@ -81,13 +85,26 @@ export default function Dashboard() {
     enabled: !!activity,
   });
 
+  const bookableEmployees = useMemo(
+    () => filterBookableEmployees(employeesRaw, activity),
+    [employeesRaw, activity]
+  );
+
+  const filterByEmployee = (list: Appointment[]) =>
+    filterEmployeeId === 'all' ? list : list.filter((a) => a.employee_id === filterEmployeeId);
+
+  const todayFiltered = useMemo(() => filterByEmployee(todayAppts), [todayAppts, filterEmployeeId]);
+  const upcomingFiltered = useMemo(() => filterByEmployee(upcomingAppts), [upcomingAppts, filterEmployeeId]);
+
+  const getEmp = (id: string | null) => employeesRaw.find((e) => e.id === id);
+
   if (!activity) return null;
 
   const stats = [
-    { icon: Calendar, label: 'Oggi', value: todayAppts.length, color: 'text-primary' },
+    { icon: Calendar, label: 'Oggi', value: todayFiltered.length, color: 'text-primary' },
     { icon: TrendingUp, label: 'Questa settimana', value: weekAppts.length, color: 'text-success' },
     { icon: Users, label: 'Clienti totali', value: totalClients, color: 'text-accent' },
-    { icon: UserPlus, label: 'Dipendenti', value: employees.length, color: 'text-warning' },
+    { icon: UserPlus, label: 'Operatori attivi', value: bookableEmployees.length, color: 'text-warning' },
   ];
 
   const statusLabel = (s: string) => {
@@ -102,7 +119,22 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Ciao, {activity.owner_name} 👋</h1>
           <p className="text-muted-foreground">{activity.name}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {bookableEmployees.length > 0 && (
+            <Select value={filterEmployeeId} onValueChange={setFilterEmployeeId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filtra per operatore" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli operatori</SelectItem>
+                {bookableEmployees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {employeeDisplayLabel(e, activity)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button onClick={() => navigate('/calendar')} variant="outline" size="sm"><Plus className="w-4 h-4" /> Nuovo appuntamento</Button>
           <Button onClick={() => navigate('/clients')} variant="outline" size="sm"><Plus className="w-4 h-4" /> Nuovo cliente</Button>
         </div>
@@ -127,20 +159,25 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold">Appuntamenti di oggi</h2>
             <Link to="/calendar" className="text-sm text-primary hover:underline">Vedi tutti</Link>
           </div>
-          {todayAppts.length === 0 ? (
+          {todayFiltered.length === 0 ? (
             <p className="text-muted-foreground text-sm py-8 text-center">Nessun appuntamento oggi</p>
           ) : (
             <div className="space-y-3">
-              {todayAppts.map(a => (
+              {todayFiltered.map(a => {
+                const emp = getEmp(a.employee_id);
+                return (
                 <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="w-1 h-10 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{a.client?.name || a.client_name || 'Cliente'}</div>
-                    <div className="text-xs text-muted-foreground">{a.service?.name || 'Appuntamento'} • {formatTime(a.start_time)} - {formatTime(a.end_time)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.service?.name || 'Appuntamento'} • {formatTime(a.start_time)} - {formatTime(a.end_time)}
+                      {emp && <span> • {emp.name}</span>}
+                    </div>
                   </div>
                   <span className={`status-badge status-${a.status}`}>{statusLabel(a.status)}</span>
                 </div>
-              ))}
+              );})}
             </div>
           )}
         </div>
@@ -148,19 +185,24 @@ export default function Dashboard() {
         {/* Upcoming */}
         <div className="glass-card p-6">
           <h2 className="text-lg font-semibold mb-4">Prossimi appuntamenti</h2>
-          {upcomingAppts.length === 0 ? (
+          {upcomingFiltered.length === 0 ? (
             <p className="text-muted-foreground text-sm py-8 text-center">Nessun appuntamento futuro</p>
           ) : (
             <div className="space-y-3">
-              {upcomingAppts.map(a => (
+              {upcomingFiltered.map(a => {
+                const emp = getEmp(a.employee_id);
+                return (
                 <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="w-1 h-10 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{a.client?.name || a.client_name || 'Cliente'}</div>
-                    <div className="text-xs text-muted-foreground">{formatDateRelative(a.date)} • {formatTime(a.start_time)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDateRelative(a.date)} • {formatTime(a.start_time)}
+                      {emp && <span> • {emp.name}</span>}
+                    </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           )}
         </div>
@@ -199,6 +241,12 @@ export default function Dashboard() {
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/clients')}>
               <Users className="w-5 h-5 mr-2" /> Gestisci clienti
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/services')}>
+              <Scissors className="w-5 h-5 mr-2" /> Servizi
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/employees')}>
+              <Contact className="w-5 h-5 mr-2" /> Dipendenti
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
               <a href={`/${activity.slug}`} target="_blank" rel="noopener noreferrer">

@@ -6,7 +6,37 @@ export const formatDate = (date: string | Date) => {
   return format(d, 'dd MMM yyyy', { locale: it });
 };
 
-export const formatTime = (time: string) => time.slice(0, 5);
+export const formatTime = (time: string) => (time || '').slice(0, 5);
+
+/** DB TIME may be HH:MM:SS; slot grid uses HH:MM */
+export const normalizeTime = (time: string): string => (time || '').slice(0, 5);
+
+export const timeToMinutes = (time: string): number => {
+  const t = normalizeTime(time);
+  const [h, m] = t.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/** True if appointment overlaps the half-hour slot starting at slotTime */
+export const appointmentOverlapsSlot = (
+  apptStart: string,
+  apptEnd: string,
+  slotTime: string,
+  slotMinutes = 30
+): boolean => {
+  const a0 = timeToMinutes(apptStart);
+  const a1 = timeToMinutes(apptEnd);
+  const s0 = timeToMinutes(slotTime);
+  const s1 = s0 + slotMinutes;
+  return a0 < s1 && a1 > s0;
+};
+
+/** Slot row where the appointment block should be anchored (start falls inside this slot) */
+export const slotContainingStart = (startTime: string, slotTime: string, slotMinutes = 30): boolean => {
+  const s = timeToMinutes(normalizeTime(startTime));
+  const slotStart = timeToMinutes(slotTime);
+  return s >= slotStart && s < slotStart + slotMinutes;
+};
 
 export const formatDateRelative = (date: string | Date) => {
   const d = typeof date === 'string' ? parseISO(date) : date;

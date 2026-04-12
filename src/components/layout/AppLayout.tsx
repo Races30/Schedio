@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, LayoutDashboard, Settings, ExternalLink, LogOut, Menu, X } from 'lucide-react';
+import { Calendar, Users, LayoutDashboard, Settings, ExternalLink, LogOut, Menu, X, Scissors, Contact } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
@@ -8,6 +8,8 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/calendar', icon: Calendar, label: 'Calendario' },
   { to: '/clients', icon: Users, label: 'Clienti' },
+  { to: '/services', icon: Scissors, label: 'Servizi' },
+  { to: '/employees', icon: Contact, label: 'Dipendenti' },
   { to: '/settings', icon: Settings, label: 'Impostazioni' },
 ];
 

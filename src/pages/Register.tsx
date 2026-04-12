@@ -37,6 +37,7 @@ export default function Register() {
   const [themeColor, setThemeColor] = useState('#3b82f6');
   const [defaultDuration, setDefaultDuration] = useState(30);
   const [bufferMinutes, setBufferMinutes] = useState(5);
+  const [hostWorksInSalon, setHostWorksInSalon] = useState(true);
 
   const toggleDay = (d: number) => {
     setOpeningDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
@@ -87,12 +88,12 @@ export default function Register() {
           theme_color: themeColor,
           default_appointment_duration_minutes: defaultDuration,
           buffer_minutes: bufferMinutes,
+          host_works_in_salon: hostWorksInSalon,
         }).select('id').single();
 
         if (actError) throw actError;
 
-        // Create owner as employee
-        if (newActivity) {
+        if (newActivity && hostWorksInSalon) {
           await supabase.from('employees').insert({
             activity_id: newActivity.id,
             name: ownerName,
@@ -102,6 +103,7 @@ export default function Register() {
             role: 'titolare',
             color: themeColor,
             is_owner: true,
+            is_active: true,
           });
         }
       }
@@ -196,6 +198,30 @@ export default function Register() {
                 <div className="flex items-center gap-3">
                   <input type="color" value={themeColor} onChange={e => setThemeColor(e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0" />
                   <span className="text-sm text-muted-foreground">{themeColor}</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <Label className="text-base">Lavori anche tu nel salone?</Label>
+                <p className="text-sm text-muted-foreground">
+                  Se sì, avrai un profilo operatore (come gli altri dipendenti) e potrai comparire nelle prenotazioni. Il calendario principale resta il tuo strumento di lavoro.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={hostWorksInSalon ? 'default' : 'outline'}
+                    className="flex-1"
+                    onClick={() => setHostWorksInSalon(true)}
+                  >
+                    Sì, opero in salone
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={!hostWorksInSalon ? 'default' : 'outline'}
+                    className="flex-1"
+                    onClick={() => setHostWorksInSalon(false)}
+                  >
+                    No, solo gestione
+                  </Button>
                 </div>
               </div>
               <div className="flex gap-3">

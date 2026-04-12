@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ClientsPage from "./pages/ClientsPage";
 import SettingsPage from "./pages/SettingsPage";
+import ServicesPage from "./pages/ServicesPage";
+import EmployeesPage from "./pages/EmployeesPage";
 import PublicBooking from "./pages/PublicBooking";
 import EmployeePage from "./pages/EmployeePage";
 import AppLayout from "./components/layout/AppLayout";
@@ -34,6 +36,8 @@ const App = () => (
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/services" element={<ServicesPage />} />
+              <Route path="/employees" element={<EmployeesPage />} />
             </Route>
             <Route path="/:slug/:slugAndToken" element={<EmployeePage />} />
             <Route path="/:slug" element={<PublicBooking />} />
