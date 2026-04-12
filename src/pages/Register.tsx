@@ -5,19 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Scissors, Dumbbell, ArrowLeft, ArrowRight, Upload } from 'lucide-react';
+import { Scissors, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { ActivityCategory } from '@/types';
 
 const DAYS = [
-  { value: 1, label: 'Lun' },
-  { value: 2, label: 'Mar' },
-  { value: 3, label: 'Mer' },
-  { value: 4, label: 'Gio' },
-  { value: 5, label: 'Ven' },
-  { value: 6, label: 'Sab' },
-  { value: 0, label: 'Dom' },
+  { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mer' },
+  { value: 4, label: 'Gio' }, { value: 5, label: 'Ven' }, { value: 6, label: 'Sab' }, { value: 0, label: 'Dom' },
 ];
+
+const generateToken = () => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < 20; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  return token;
+};
 
 export default function Register() {
   const navigate = useNavigate();
@@ -25,16 +26,17 @@ export default function Register() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const [category, setCategory] = useState<ActivityCategory | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activityName, setActivityName] = useState('');
   const [ownerName, setOwnerName] = useState('');
+  const [ownerSurname, setOwnerSurname] = useState('');
   const [openingDays, setOpeningDays] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const [openStart, setOpenStart] = useState('09:00');
   const [openEnd, setOpenEnd] = useState('19:00');
   const [themeColor, setThemeColor] = useState('#3b82f6');
   const [defaultDuration, setDefaultDuration] = useState(30);
+  const [bufferMinutes, setBufferMinutes] = useState(5);
 
   const toggleDay = (d: number) => {
     setOpeningDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
@@ -44,8 +46,12 @@ export default function Register() {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
   };
 
+  const makeEmployeeSlug = (name: string, surname: string) => {
+    return `${name}-${surname}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  };
+
   const handleSubmit = async () => {
-    if (!category || !email || !password || !activityName || !ownerName) {
+    if (!email || !password || !activityName || !ownerName || !ownerSurname) {
       toast.error('Compila tutti i campi obbligatori');
       return;
     }
@@ -61,30 +67,43 @@ export default function Register() {
         return;
       }
 
-      const { data: existingActivity, error: existingActivityError } = await supabase
+      // Check existing activity
+      const { data: existingActivity } = await supabase
         .from('activities')
         .select('id')
         .eq('user_id', authUserId)
-        .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (existingActivityError) throw existingActivityError;
-
       if (!existingActivity) {
-        const { error: actError } = await supabase.from('activities').insert({
+        const { data: newActivity, error: actError } = await supabase.from('activities').insert({
           user_id: authUserId,
           name: activityName,
           slug: generateSlug(activityName),
-          category,
-          owner_name: ownerName,
+          category: 'salone',
+          owner_name: `${ownerName} ${ownerSurname}`,
           opening_days: openingDays,
           opening_hours: { start: openStart, end: openEnd },
           theme_color: themeColor,
           default_appointment_duration_minutes: defaultDuration,
-        });
+          buffer_minutes: bufferMinutes,
+        }).select('id').single();
 
         if (actError) throw actError;
+
+        // Create owner as employee
+        if (newActivity) {
+          await supabase.from('employees').insert({
+            activity_id: newActivity.id,
+            name: ownerName,
+            surname: ownerSurname,
+            slug: makeEmployeeSlug(ownerName, ownerSurname),
+            token: generateToken(),
+            role: 'titolare',
+            color: themeColor,
+            is_owner: true,
+          });
+        }
       }
 
       await refreshActivity(authUserId);
@@ -105,10 +124,12 @@ export default function Register() {
         </Link>
 
         <div className="glass-card p-8">
-          <h1 className="text-2xl font-bold mb-1">Crea il tuo account</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <Scissors className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-bold">Crea il tuo salone</h1>
+          </div>
           <p className="text-muted-foreground mb-6">Passo {step} di 3</p>
 
-          {/* Progress bar */}
           <div className="flex gap-2 mb-8">
             {[1, 2, 3].map(s => (
               <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
@@ -118,33 +139,20 @@ export default function Register() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <Label className="text-base font-medium mb-3 block">Che tipo di attività gestisci?</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => { setCategory('salone'); setDefaultDuration(30); }}
-                    className={`p-6 rounded-xl border-2 text-center transition-all ${category === 'salone' ? 'border-salone bg-salone-light' : 'border-border hover:border-salone/50'}`}>
-                    <Scissors className={`w-8 h-8 mx-auto mb-2 ${category === 'salone' ? 'text-salone' : 'text-muted-foreground'}`} />
-                    <div className="font-medium">Salone</div>
-                    <div className="text-xs text-muted-foreground">Barbiere / Parrucchiere</div>
-                  </button>
-                  <button onClick={() => { setCategory('coach'); setDefaultDuration(60); }}
-                    className={`p-6 rounded-xl border-2 text-center transition-all ${category === 'coach' ? 'border-coach bg-coach-light' : 'border-border hover:border-coach/50'}`}>
-                    <Dumbbell className={`w-8 h-8 mx-auto mb-2 ${category === 'coach' ? 'text-coach' : 'text-muted-foreground'}`} />
-                    <div className="font-medium">Coach</div>
-                    <div className="text-xs text-muted-foreground">Personal Trainer</div>
-                  </button>
-                </div>
+                <Label>Nome salone *</Label>
+                <Input value={activityName} onChange={e => setActivityName(e.target.value)} placeholder="es. Barber Shop Roma" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="actName">Nome attività *</Label>
-                  <Input id="actName" value={activityName} onChange={e => setActivityName(e.target.value)} placeholder="es. Barber Shop Roma" />
+                  <Label>Nome titolare *</Label>
+                  <Input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Marco" />
                 </div>
                 <div>
-                  <Label htmlFor="ownerName">Nome titolare *</Label>
-                  <Input id="ownerName" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="es. Marco Rossi" />
+                  <Label>Cognome titolare *</Label>
+                  <Input value={ownerSurname} onChange={e => setOwnerSurname(e.target.value)} placeholder="Rossi" />
                 </div>
               </div>
-              <Button onClick={() => setStep(2)} disabled={!category || !activityName || !ownerName} className="w-full" variant="hero">
+              <Button onClick={() => setStep(2)} disabled={!activityName || !ownerName || !ownerSurname} className="w-full" variant="hero">
                 Continua <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -165,22 +173,28 @@ export default function Register() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="openStart">Apertura</Label>
-                  <Input id="openStart" type="time" value={openStart} onChange={e => setOpenStart(e.target.value)} />
+                  <Label>Apertura</Label>
+                  <Input type="time" value={openStart} onChange={e => setOpenStart(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="openEnd">Chiusura</Label>
-                  <Input id="openEnd" type="time" value={openEnd} onChange={e => setOpenEnd(e.target.value)} />
+                  <Label>Chiusura</Label>
+                  <Input type="time" value={openEnd} onChange={e => setOpenEnd(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Durata media appuntamento (min)</Label>
+                  <Input type="number" value={defaultDuration} onChange={e => setDefaultDuration(Number(e.target.value))} min={5} max={240} step={5} />
+                </div>
+                <div>
+                  <Label>Buffer tra appuntamenti (min)</Label>
+                  <Input type="number" value={bufferMinutes} onChange={e => setBufferMinutes(Number(e.target.value))} min={0} max={60} step={5} />
                 </div>
               </div>
               <div>
-                <Label htmlFor="duration">Durata media {category === 'salone' ? 'appuntamento' : 'sessione'} (minuti)</Label>
-                <Input id="duration" type="number" value={defaultDuration} onChange={e => setDefaultDuration(Number(e.target.value))} min={5} max={240} step={5} />
-              </div>
-              <div>
-                <Label htmlFor="themeColor">Colore tema</Label>
+                <Label>Colore tema</Label>
                 <div className="flex items-center gap-3">
-                  <input type="color" id="themeColor" value={themeColor} onChange={e => setThemeColor(e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0" />
+                  <input type="color" value={themeColor} onChange={e => setThemeColor(e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0" />
                   <span className="text-sm text-muted-foreground">{themeColor}</span>
                 </div>
               </div>
@@ -198,12 +212,12 @@ export default function Register() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la-tua@email.com" />
+                <Label>Email *</Label>
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la-tua@email.com" />
               </div>
               <div>
-                <Label htmlFor="password">Password *</Label>
-                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimo 6 caratteri" />
+                <Label>Password *</Label>
+                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimo 6 caratteri" />
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(2)}>

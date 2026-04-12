@@ -1,11 +1,11 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, Clock, Plus, TrendingUp, Package, ExternalLink } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
-import { formatDate, formatTime, formatDateRelative } from '@/utils/dateHelpers';
-import { Appointment, Client } from '@/types';
+import { formatTime, formatDateRelative } from '@/utils/dateHelpers';
+import { Appointment, Client, Employee } from '@/types';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
@@ -46,13 +46,17 @@ export default function Dashboard() {
   const { data: recentClients = [] } = useQuery({
     queryKey: ['clients', 'recent', activity?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('activity_id', activity!.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const { data } = await supabase.from('clients').select('*').eq('activity_id', activity!.id).order('created_at', { ascending: false }).limit(5);
       return (data || []) as Client[];
+    },
+    enabled: !!activity,
+  });
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees', activity?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('employees').select('*').eq('activity_id', activity!.id).order('is_owner', { ascending: false });
+      return (data || []) as Employee[];
     },
     enabled: !!activity,
   });
@@ -62,12 +66,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const weekEnd = new Date();
       weekEnd.setDate(weekEnd.getDate() + 7);
-      const { data } = await supabase
-        .from('appointments')
-        .select('id, status')
-        .eq('activity_id', activity!.id)
-        .gte('date', today)
-        .lte('date', weekEnd.toISOString().split('T')[0]);
+      const { data } = await supabase.from('appointments').select('id, status').eq('activity_id', activity!.id).gte('date', today).lte('date', weekEnd.toISOString().split('T')[0]);
       return data || [];
     },
     enabled: !!activity,
@@ -76,10 +75,7 @@ export default function Dashboard() {
   const { data: totalClients = 0 } = useQuery({
     queryKey: ['clients', 'count', activity?.id],
     queryFn: async () => {
-      const { count } = await supabase
-        .from('clients')
-        .select('*', { count: 'exact', head: true })
-        .eq('activity_id', activity!.id);
+      const { count } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('activity_id', activity!.id);
       return count || 0;
     },
     enabled: !!activity,
@@ -87,22 +83,12 @@ export default function Dashboard() {
 
   if (!activity) return null;
 
-  const isSalone = activity.category === 'salone';
-  const cancelledCount = weekAppts.filter(a => a.status === 'cancelled').length;
-
-  const stats = isSalone
-    ? [
-        { icon: Calendar, label: 'Oggi', value: todayAppts.length, color: 'text-primary' },
-        { icon: TrendingUp, label: 'Questa settimana', value: weekAppts.length, color: 'text-success' },
-        { icon: Users, label: 'Clienti totali', value: totalClients, color: 'text-accent' },
-        { icon: Clock, label: 'Durata media', value: `${activity.default_appointment_duration_minutes} min`, color: 'text-warning' },
-      ]
-    : [
-        { icon: Users, label: 'Clienti attivi', value: totalClients, color: 'text-coach' },
-        { icon: Calendar, label: 'Sessioni prenotate', value: weekAppts.length, color: 'text-primary' },
-        { icon: Clock, label: 'Durata sessione', value: `${activity.default_appointment_duration_minutes} min`, color: 'text-warning' },
-        { icon: TrendingUp, label: 'Cancellate', value: cancelledCount, color: 'text-destructive' },
-      ];
+  const stats = [
+    { icon: Calendar, label: 'Oggi', value: todayAppts.length, color: 'text-primary' },
+    { icon: TrendingUp, label: 'Questa settimana', value: weekAppts.length, color: 'text-success' },
+    { icon: Users, label: 'Clienti totali', value: totalClients, color: 'text-accent' },
+    { icon: UserPlus, label: 'Dipendenti', value: employees.length, color: 'text-warning' },
+  ];
 
   const statusLabel = (s: string) => {
     const map: Record<string, string> = { confirmed: 'Confermato', pending: 'In attesa', cancelled: 'Cancellato', completed: 'Completato' };
@@ -114,23 +100,17 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold">Ciao, {activity.owner_name} 👋</h1>
-          <p className="text-muted-foreground">{activity.name} • {isSalone ? 'Salone' : 'Coach'}</p>
+          <p className="text-muted-foreground">{activity.name}</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate('/calendar')} variant="outline" size="sm">
-            <Plus className="w-4 h-4" /> Nuovo appuntamento
-          </Button>
-          <Button onClick={() => navigate('/clients')} variant="outline" size="sm">
-            <Plus className="w-4 h-4" /> Nuovo cliente
-          </Button>
+          <Button onClick={() => navigate('/calendar')} variant="outline" size="sm"><Plus className="w-4 h-4" /> Nuovo appuntamento</Button>
+          <Button onClick={() => navigate('/clients')} variant="outline" size="sm"><Plus className="w-4 h-4" /> Nuovo cliente</Button>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-            className="glass-card p-4">
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card p-4">
             <div className="flex items-center gap-2 mb-2">
               <s.icon className={`w-5 h-5 ${s.color}`} />
               <span className="text-sm text-muted-foreground">{s.label}</span>
@@ -141,7 +121,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Today's appointments */}
+        {/* Today */}
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Appuntamenti di oggi</h2>
@@ -156,7 +136,7 @@ export default function Dashboard() {
                   <div className="w-1 h-10 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{a.client?.name || a.client_name || 'Cliente'}</div>
-                    <div className="text-xs text-muted-foreground">{a.service?.name || 'Sessione'} • {formatTime(a.start_time)} - {formatTime(a.end_time)}</div>
+                    <div className="text-xs text-muted-foreground">{a.service?.name || 'Appuntamento'} • {formatTime(a.start_time)} - {formatTime(a.end_time)}</div>
                   </div>
                   <span className={`status-badge status-${a.status}`}>{statusLabel(a.status)}</span>
                 </div>
@@ -167,9 +147,7 @@ export default function Dashboard() {
 
         {/* Upcoming */}
         <div className="glass-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Prossimi appuntamenti</h2>
-          </div>
+          <h2 className="text-lg font-semibold mb-4">Prossimi appuntamenti</h2>
           {upcomingAppts.length === 0 ? (
             <p className="text-muted-foreground text-sm py-8 text-center">Nessun appuntamento futuro</p>
           ) : (
@@ -223,12 +201,12 @@ export default function Dashboard() {
               <Users className="w-5 h-5 mr-2" /> Gestisci clienti
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
-              <a href={`/book/${activity.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={`/${activity.slug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-5 h-5 mr-2" /> Apri pagina prenotazione
               </a>
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/settings')}>
-              <Package className="w-5 h-5 mr-2" /> Impostazioni
+              <Clock className="w-5 h-5 mr-2" /> Impostazioni
             </Button>
           </div>
         </div>
