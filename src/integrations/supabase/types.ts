@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          buffer_minutes: number
           category: string
           created_at: string
           default_appointment_duration_minutes: number
@@ -32,6 +33,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          buffer_minutes?: number
           category: string
           created_at?: string
           default_appointment_duration_minutes?: number
@@ -48,6 +50,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          buffer_minutes?: number
           category?: string
           created_at?: string
           default_appointment_duration_minutes?: number
@@ -76,6 +79,7 @@ export type Database = {
           created_at: string
           date: string
           duration_minutes: number
+          employee_id: string | null
           end_time: string
           id: string
           notes: string | null
@@ -94,6 +98,7 @@ export type Database = {
           created_at?: string
           date: string
           duration_minutes: number
+          employee_id?: string | null
           end_time: string
           id?: string
           notes?: string | null
@@ -112,6 +117,7 @@ export type Database = {
           created_at?: string
           date?: string
           duration_minutes?: number
+          employee_id?: string | null
           end_time?: string
           id?: string
           notes?: string | null
@@ -133,6 +139,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
           {
@@ -222,6 +235,86 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "clients_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_services: {
+        Row: {
+          employee_id: string
+          id: string
+          service_id: string
+        }
+        Insert: {
+          employee_id: string
+          id?: string
+          service_id: string
+        }
+        Update: {
+          employee_id?: string
+          id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_services_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          activity_id: string
+          color: string
+          created_at: string
+          id: string
+          is_owner: boolean
+          name: string
+          role: string
+          slug: string
+          surname: string
+          token: string
+        }
+        Insert: {
+          activity_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_owner?: boolean
+          name: string
+          role?: string
+          slug: string
+          surname: string
+          token: string
+        }
+        Update: {
+          activity_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_owner?: boolean
+          name?: string
+          role?: string
+          slug?: string
+          surname?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_activity_id_fkey"
             columns: ["activity_id"]
             isOneToOne: false
             referencedRelation: "activities"
