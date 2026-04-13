@@ -22,6 +22,7 @@ export type Database = {
           created_at: string
           default_appointment_duration_minutes: number
           default_duration_minutes: number
+          description: string | null
           host_works_in_salon: boolean
           id: string
           logo_url: string | null
@@ -42,6 +43,7 @@ export type Database = {
           created_at?: string
           default_appointment_duration_minutes?: number
           default_duration_minutes?: number
+          description?: string | null
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           created_at?: string
           default_appointment_duration_minutes?: number
           default_duration_minutes?: number
+          description?: string | null
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
@@ -231,9 +234,12 @@ export type Database = {
           activity_id: string
           created_at: string
           email: string | null
+          frequency: string | null
           id: string
+          level: string | null
           name: string
           notes: string | null
+          objective: string | null
           phone: string | null
           preferences: Json | null
           updated_at: string
@@ -242,9 +248,12 @@ export type Database = {
           activity_id: string
           created_at?: string
           email?: string | null
+          frequency?: string | null
           id?: string
+          level?: string | null
           name: string
           notes?: string | null
+          objective?: string | null
           phone?: string | null
           preferences?: Json | null
           updated_at?: string
@@ -253,9 +262,12 @@ export type Database = {
           activity_id?: string
           created_at?: string
           email?: string | null
+          frequency?: string | null
           id?: string
+          level?: string | null
           name?: string
           notes?: string | null
+          objective?: string | null
           phone?: string | null
           preferences?: Json | null
           updated_at?: string
@@ -365,6 +377,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          price: number | null
           start_date: string | null
           status: string
           total_sessions: number
@@ -379,6 +392,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          price?: number | null
           start_date?: string | null
           status?: string
           total_sessions: number
@@ -393,6 +407,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          price?: number | null
           start_date?: string | null
           status?: string
           total_sessions?: number
@@ -419,32 +434,47 @@ export type Database = {
       progress_entries: {
         Row: {
           activity_id: string
+          arms: number | null
+          chest: number | null
           client_id: string
           created_at: string
+          hips: number | null
           id: string
           measurement_date: string
           notes: string | null
           photo_url: string | null
+          thighs: number | null
+          waist: number | null
           weight: number | null
         }
         Insert: {
           activity_id: string
+          arms?: number | null
+          chest?: number | null
           client_id: string
           created_at?: string
+          hips?: number | null
           id?: string
           measurement_date?: string
           notes?: string | null
           photo_url?: string | null
+          thighs?: number | null
+          waist?: number | null
           weight?: number | null
         }
         Update: {
           activity_id?: string
+          arms?: number | null
+          chest?: number | null
           client_id?: string
           created_at?: string
+          hips?: number | null
           id?: string
           measurement_date?: string
           notes?: string | null
           photo_url?: string | null
+          thighs?: number | null
+          waist?: number | null
           weight?: number | null
         }
         Relationships: [
@@ -469,6 +499,7 @@ export type Database = {
           activity_id: string
           color: string
           created_at: string
+          description: string | null
           duration_minutes: number
           id: string
           is_active: boolean
@@ -480,6 +511,7 @@ export type Database = {
           activity_id: string
           color?: string
           created_at?: string
+          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
@@ -491,6 +523,7 @@ export type Database = {
           activity_id?: string
           color?: string
           created_at?: string
+          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
