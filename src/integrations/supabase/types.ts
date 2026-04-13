@@ -17,9 +17,11 @@ export type Database = {
       activities: {
         Row: {
           buffer_minutes: number
+          buffer_time_minutes: number
           category: string
           created_at: string
           default_appointment_duration_minutes: number
+          default_duration_minutes: number
           host_works_in_salon: boolean
           id: string
           logo_url: string | null
@@ -35,9 +37,11 @@ export type Database = {
         }
         Insert: {
           buffer_minutes?: number
+          buffer_time_minutes?: number
           category: string
           created_at?: string
           default_appointment_duration_minutes?: number
+          default_duration_minutes?: number
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
@@ -53,9 +57,11 @@ export type Database = {
         }
         Update: {
           buffer_minutes?: number
+          buffer_time_minutes?: number
           category?: string
           created_at?: string
           default_appointment_duration_minutes?: number
+          default_duration_minutes?: number
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
@@ -168,9 +174,12 @@ export type Database = {
           activity_id: string
           created_at: string
           day_of_week: number
+          employee_id: string | null
+          end_datetime: string | null
           end_time: string
           id: string
           notes: string | null
+          start_datetime: string | null
           start_time: string
           type: string
         }
@@ -178,9 +187,12 @@ export type Database = {
           activity_id: string
           created_at?: string
           day_of_week: number
+          employee_id?: string | null
+          end_datetime?: string | null
           end_time: string
           id?: string
           notes?: string | null
+          start_datetime?: string | null
           start_time: string
           type?: string
         }
@@ -188,9 +200,12 @@ export type Database = {
           activity_id?: string
           created_at?: string
           day_of_week?: number
+          employee_id?: string | null
+          end_datetime?: string | null
           end_time?: string
           id?: string
           notes?: string | null
+          start_datetime?: string | null
           start_time?: string
           type?: string
         }
@@ -200,6 +215,13 @@ export type Database = {
             columns: ["activity_id"]
             isOneToOne: false
             referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_blocks_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]
@@ -447,7 +469,6 @@ export type Database = {
           activity_id: string
           color: string
           created_at: string
-          description: string | null
           duration_minutes: number
           id: string
           is_active: boolean
@@ -459,7 +480,6 @@ export type Database = {
           activity_id: string
           color?: string
           created_at?: string
-          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
@@ -471,7 +491,6 @@ export type Database = {
           activity_id?: string
           color?: string
           created_at?: string
-          description?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
