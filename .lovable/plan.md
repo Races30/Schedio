@@ -1,152 +1,177 @@
-# Piano: Refactor SaaS - Solo Salone con Gestione Dipendenti
+
+
+# Piano: Slot 15 min, Calendario Avanzato Salone + Modulo Coach Completo
 
 ## Panoramica
+Due fasi: (1) miglioramento completo del salone con slot da 15 minuti, blocco buffer, inserimento orario manuale, pause/chiusure; (2) modulo Coach completo con clienti, pacchetti, progressi, sessioni e prenotazione pubblica.
 
-Migliorare la parte del Saas Salone in una piattaforma dedicata con gestione dipendenti, servizi assegnabili, calendario multi-dipendente e pagine private con token. Lasciando però la parte coach
+---
 
-## Modifiche al Database
+## FASE 1 — Salone Avanzato
 
-### Nuova tabella: `employees`
+### 1.1 Slot da 15 minuti (calendario + prenotazione)
 
-```sql
-CREATE TABLE employees (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  activity_id uuid NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  surname text NOT NULL,
-  slug text NOT NULL,
-  token text NOT NULL UNIQUE,
-  role text DEFAULT 'dipendente',
-  color text DEFAULT '#3b82f6',
-  is_owner boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-```
+**File modificati:** `CalendarPage.tsx`, `PublicBooking.tsx`, `EmployeePage.tsx`, `dateHelpers.ts`
 
-### Nuova tabella: `employee_services` (molti-a-molti)
+- Cambiare `generateTimeSlots` da intervallo 30 a 15 minuti in tutti i calendari
+- Adattare altezza slot nel CSS (da 48px a 36px per slot, o simile)
+- Calcolo blocco: `slotsOccupati = Math.ceil((durata + buffer) / 15)` — tutti gli slot vengono marcati come occupati
+- La funzione `appointmentOverlapsSlot` e `slotContainingStart` devono usare 15 min come base
+- Nel `PublicBooking`, generare slot ogni 15 min e filtrare quelli occupati considerando durata+buffer
 
-```sql
-CREATE TABLE employee_services (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  employee_id uuid NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  service_id uuid NOT NULL REFERENCES services(id) ON DELETE CASCADE,
-  UNIQUE(employee_id, service_id)
-);
-```
+### 1.2 Inserimento orario manuale
 
-### Modifica tabella `appointments`
+**File modificato:** `CalendarPage.tsx` (AppointmentDialog)
 
-- Aggiungere colonna `employee_id uuid REFERENCES employees(id)`
+- Aggiungere un `<Input type="time" step="900">` (step 15 min) per l'orario
+- Validazione: arrotonda a multipli di 15 minuti
+- L'utente può sia cliccare sullo slot nel calendario sia scrivere l'orario manualmente nel dialog
 
-### Modifica tabella `activities`
+### 1.3 Blocco completo servizio + buffer
 
-- Aggiungere colonna `buffer_minutes integer DEFAULT 5`
-- Rimuovere dipendenza dal campo `category` (sarà sempre 'salone')
+**File modificati:** `CalendarPage.tsx`, `PublicBooking.tsx`
 
-### RLS policies
+- Nella griglia calendario, gli slot occupati dal buffer devono essere visivamente distinti (colore più chiaro / tratteggiato)
+- Il blocco totale = durata servizio + buffer_minutes dell'attività
+- Nessun appuntamento può sovrapporsi al range `[start, start + durata + buffer)`
 
-- `employees`: pubblica in lettura, gestione solo owner
-- `employee_services`: pubblica in lettura, gestione solo owner
-- `appointments`: aggiornare per includere `employee_id`
+### 1.4 Pause, pausa pranzo e chiusure
 
-## Modifiche ai File
+**Database:** Migrazione per aggiornare `availability_blocks`:
+- Aggiungere tipo `'break' | 'lunch' | 'closure'` oltre ai tipi esistenti
+- Aggiungere campi `start_datetime`/`end_datetime` (già presenti nel DB) per chiusure su date specifiche
+- Aggiungere `employee_id` opzionale (già presente) per pause per-dipendente
 
-### 1. Tipi (`src/types/index.ts`)
+**File modificati:** `SettingsPage.tsx`, `CalendarPage.tsx`
 
-- Rimuovere `ActivityCategory`, `Package`, `ProgressEntry`
-- Aggiungere interfacce `Employee`, `EmployeeService`
-- Aggiungere `employee_id` e `buffer_minutes` ai tipi esistenti
+- In Impostazioni: nuova sezione per gestire pause ricorrenti (pranzo, chiusure settimanali) e chiusure straordinarie (date specifiche)
+- Regola: chiusure > 1 giorno richiedono almeno 3 settimane di anticipo
+- Nel calendario: mostrare blocchi di pausa come slot non cliccabili con sfondo distinto
+- Verifica conflitti: se ci sono appuntamenti esistenti in un range che si vuole chiudere, avvisare l'utente
 
-### 2. Registrazione (`Register.tsx`)
+### 1.5 Calendario visivo migliorato
 
-- Rimuovere scelta Salone/Coach (sempre salone)
-- Semplificare a: nome salone, titolare, email, password, orari, giorni
-- Creare automaticamente un dipendente "owner" dopo la registrazione
-- Aggiungere campo buffer_minutes
+**File modificato:** `CalendarPage.tsx`
 
-### 3. Landing Page (`Landing.tsx`)
+- Slot 15 min con righe più compatte
+- Indicatore ora corrente (linea rossa orizzontale)
+- Appuntamenti con altezza proporzionale alla durata (in slot da 15 min)
+- Buffer visualizzato con pattern differente sotto l'appuntamento
 
-- Rimuovere riferimenti a Coach/Personal Trainer
-- Focalizzare su saloni: servizi, dipendenti, calendario, prenotazioni
-- Aggiornare pricing solo per saloni
-- Aggiornare features e FAQ
+---
 
-### 4. Dashboard (`Dashboard.tsx`)
+## FASE 2 — Modulo Coach Completo
 
-- Rimuovere logica Coach
-- Aggiungere sezione dipendenti con link alle pagine private
-- Mostrare statistiche solo salone
+### 2.1 Database
 
-### 5. Impostazioni (`SettingsPage.tsx`)
+**Migrazione SQL:**
+- Aggiungere colonna `description` a `activities` (per il coach: bio/specializzazione)
+- Aggiungere colonne opzionali a `clients`: `objective`, `level`, `frequency`
+- La tabella `packages` esiste già con tutti i campi necessari
+- La tabella `progress_entries` esiste già — aggiungere colonne misure: `waist`, `hips`, `chest`, `arms`, `thighs` (tutti numeric nullable)
 
-- Rimuovere condizionale `isSalone`
-- Aggiungere sezione gestione dipendenti (CRUD)
-- Aggiungere assegnazione servizi ai dipendenti
-- Aggiungere gestione buffer_minutes
-- Mostrare link privati dipendenti con token
+### 2.2 Registrazione dual-mode
 
-### 6. Calendario (`CalendarPage.tsx`)
+**File modificato:** `Register.tsx`
 
-- Aggiungere filtro per dipendente
-- Mostrare colore dipendente sugli appuntamenti
-- Includere `employee_id` nella creazione appuntamento
-- Gestire buffer automatico tra appuntamenti
+- Aggiungere step 0: scelta categoria (Salone / Coach)
+- Se Salone: flusso attuale (nome salone, titolare, orari, host_works_in_salon)
+- Se Coach: nome attività, nome trainer, specializzazione, durata media sessione (default 60 min), giorni/orari
+- Non creare employee per il coach (non serve multi-dipendente)
 
-### 7. Pagina Pubblica (`PublicBooking.tsx`)
+### 2.3 Landing Page
 
-- Riscrivere completamente come landing professionale
-- Flusso: servizio -> dipendente (opzionale/auto) -> data -> orario -> dati -> conferma
-- Se "nessuna preferenza dipendente": mostra disponibilità globale e assegna automaticamente
-- Se dipendente scelto: mostra solo il suo calendario
-- Sezioni: header, hero, servizi, selezione dipendente, calendario, form, conferma, footer
+**File modificato:** `Landing.tsx`
 
-### 8. Nuova Pagina: Pagina Dipendente (`EmployeePage.tsx`)
+- Aggiungere sezione che mostra entrambe le modalità (Salone + Coach)
+- Features differenziate per tipo
+- FAQ aggiornate per entrambi
 
-- Accessibile via `/:slug/:employeeSlug--:token`
-- Verifica token nel DB
-- Mostra solo calendario personale del dipendente
-- Mostra solo i suoi appuntamenti
-- Nessun dato di altri dipendenti o clienti completi
+### 2.4 Dashboard Coach
 
-### 9. Routing (`App.tsx`)
+**File modificato:** `Dashboard.tsx`
 
-- Cambiare `/book/:slug` in `/:slug` per la pagina pubblica
-- Aggiungere `/:slug/:employeeToken` per la pagina dipendente
-- Gestire conflitto con route interne (dashboard, calendar, ecc.)
+- Condizionale `isSalone` / `isCoach` basato su `activity.category`
+- Coach: mostra statistiche (sessioni oggi, clienti attivi, pacchetti in scadenza, sedute rimanenti totali)
+- Coach: lista prossime sessioni, clienti recenti, pacchetti vicini alla scadenza
+- Alert per pacchetti con poche sedute rimanenti
 
-### 10. AppLayout (`AppLayout.tsx`)
+### 2.5 Pagina Clienti Coach
 
-- Aggiungere link "Dipendenti" nella navigazione
-- Rimuovere riferimenti a Coach
+**File modificato:** `ClientsPage.tsx`
 
-### 11. Context (`AuthContext.tsx`)
+- Se Coach: aggiungere campi obiettivo, livello, frequenza nel form cliente
+- Mostrare pacchetto attivo del cliente, sedute rimanenti, scadenza
+- Tab o sezione progressi con grafico peso nel tempo
+- Aggiungere form progressi (peso, misure, foto, note)
 
-- Rimuovere riferimenti a Coach
-- Caricare dipendenti dell'attività se necessario
+### 2.6 Pagina Pacchetti Coach (nuova)
 
-### 12. Pulizia
+**Nuovo file:** `src/pages/PackagesPage.tsx`
 
-- Rimuovere codice Coach da tutte le pagine
-- Rimuovere tabelle/tipi `packages`, `progress_entries` dall'UI
-- Rimuovere colori/stili Coach dal CSS e Tailwind config
+- CRUD pacchetti: nome, sessioni totali, prezzo, data inizio/fine, stato
+- Assegnazione a cliente
+- Badge "in scadenza" / "esaurito"
+- Contatore sedute usate/rimanenti
 
-## Struttura URL finale
+### 2.7 Calendario Coach
 
-```text
-/                          -> Landing page
-/login                     -> Login
-/register                  -> Registrazione (solo salone)
-/dashboard                 -> Dashboard host
-/calendar                  -> Calendario host
-/clients                   -> Gestione clienti
-/settings                  -> Impostazioni + dipendenti
-/:slug                     -> Pagina pubblica prenotazione
-/:slug/:name--token        -> Pagina privata dipendente
-```
+**File modificato:** `CalendarPage.tsx`
 
-## Note tecniche
+- Se Coach: nascondere filtro dipendenti
+- Mostrare nome cliente + tipo sessione sugli appuntamenti
+- Slot da 15 o 30 min configurabile (il coach usa spesso 60 min)
 
-- Il token dipendente viene generato con `crypto.randomUUID()` o stringa random lunga 20+ caratteri
-- La logica di assegnazione automatica dipendente sceglie chi ha meno appuntamenti nel giorno
-- Il buffer viene aggiunto automaticamente dopo ogni appuntamento
-- Le route pubbliche (`/:slug`) vanno gestite con attenzione per non conflittuare con `/login`, `/register`, ecc.
+### 2.8 Pagina Pubblica Coach
+
+**File modificato:** `PublicBooking.tsx`
+
+- Se `activity.category === 'coach'`: layout diverso
+- Hero con nome trainer, descrizione, specializzazione
+- Sessioni prenotabili (invece di "servizi")
+- Nessuna selezione dipendente (il coach è uno solo)
+- Flusso: sessione → data → orario → dati cliente (con campo obiettivo opzionale) → conferma
+- FAQ specifiche per coach
+
+### 2.9 Routing
+
+**File modificato:** `App.tsx`
+
+- Aggiungere route `/packages` dentro `AppLayout`
+
+### 2.10 AppLayout
+
+**File modificato:** `AppLayout.tsx`
+
+- Condizionale navigazione: Salone mostra "Dipendenti", Coach mostra "Pacchetti"
+- Entrambi: Dashboard, Calendario, Clienti, Servizi, Impostazioni
+
+### 2.11 Impostazioni Coach
+
+**File modificato:** `SettingsPage.tsx`
+
+- Se Coach: mostrare campi specifici (specializzazione, descrizione, foto)
+- Nascondere sezione "Lavoro nel salone"
+- Mantenere orari, durata media, buffer
+
+---
+
+## Riepilogo file
+
+| File | Azione |
+|------|--------|
+| `dateHelpers.ts` | Aggiornare slot default a 15 min |
+| `CalendarPage.tsx` | Slot 15 min, blocco buffer visivo, pause, input manuale orario |
+| `PublicBooking.tsx` | Slot 15 min, layout condizionale coach, flusso senza dipendente |
+| `EmployeePage.tsx` | Slot 15 min |
+| `SettingsPage.tsx` | Sezione pause/chiusure, campi coach |
+| `Register.tsx` | Dual-mode salone/coach |
+| `Landing.tsx` | Contenuto dual-mode |
+| `Dashboard.tsx` | Stats e layout condizionali coach |
+| `ClientsPage.tsx` | Campi coach, progressi, pacchetti |
+| `PackagesPage.tsx` | **Nuovo** — CRUD pacchetti coach |
+| `AppLayout.tsx` | Nav condizionale |
+| `App.tsx` | Route `/packages` |
+| `types/index.ts` | Tipi aggiornati (misure progress, campi client) |
+| **Migrazione DB** | Colonne misure su `progress_entries`, campi client, description su activities |
+
