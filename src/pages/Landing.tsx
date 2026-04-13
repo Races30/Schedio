@@ -1,19 +1,26 @@
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Calendar, Users, Clock, Star, ArrowRight, Scissors, CheckCircle2, ChevronDown, UserPlus } from 'lucide-react';
+import { Calendar, Users, Clock, Star, ArrowRight, Scissors, CheckCircle2, ChevronDown, UserPlus, Dumbbell, Package, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
-const features = [
-  { icon: Calendar, title: 'Calendario Smart', desc: 'Vista giornaliera e settimanale con appuntamenti colorati per dipendente.' },
+const salonFeatures = [
+  { icon: Calendar, title: 'Calendario Smart', desc: 'Vista giornaliera e settimanale con slot da 15 minuti e appuntamenti colorati.' },
   { icon: Users, title: 'Gestione Clienti', desc: 'Schede complete con storico appuntamenti, preferenze e note.' },
   { icon: Clock, title: 'Prenotazione Online', desc: 'Pagina pubblica professionale per ricevere prenotazioni 24/7.' },
   { icon: UserPlus, title: 'Multi-Dipendente', desc: 'Gestisci più dipendenti con servizi assegnati e calendari personali.' },
 ];
 
+const coachFeatures = [
+  { icon: Dumbbell, title: 'Sessioni Personalizzate', desc: 'Crea e gestisci sessioni di allenamento con durata e prezzo.' },
+  { icon: Package, title: 'Pacchetti Sedute', desc: 'Offri pacchetti con conteggio automatico delle sedute rimanenti.' },
+  { icon: TrendingUp, title: 'Traccia Progressi', desc: 'Peso, misure corporee e foto per monitorare i risultati dei clienti.' },
+  { icon: Calendar, title: 'Calendario & Prenotazioni', desc: 'Calendario con disponibilità e prenotazione online per i tuoi clienti.' },
+];
+
 const steps = [
-  { num: '01', title: 'Registrati', desc: 'Crea il tuo salone e configura i servizi.' },
-  { num: '02', title: 'Aggiungi il team', desc: 'Inserisci dipendenti e assegna i servizi.' },
+  { num: '01', title: 'Registrati', desc: 'Crea il tuo profilo e configura i servizi.' },
+  { num: '02', title: 'Configura', desc: 'Aggiungi team, servizi e orari.' },
   { num: '03', title: 'Ricevi prenotazioni', desc: 'Condividi il link e gestisci tutto dal calendario.' },
 ];
 
@@ -21,19 +28,22 @@ const faqs = [
   { q: 'È gratuito?', a: 'Sì! Al momento la piattaforma è completamente gratuita. In futuro saranno disponibili piani premium.' },
   { q: 'Devo installare qualcosa?', a: 'No, funziona direttamente dal browser su qualsiasi dispositivo.' },
   { q: 'I miei clienti devono registrarsi?', a: 'No! I clienti prenotano dalla tua pagina pubblica senza creare un account.' },
-  { q: 'Posso gestire più dipendenti?', a: 'Sì! Ogni dipendente ha il suo calendario, i suoi servizi e una pagina privata con link personale.' },
-  { q: 'I clienti possono scegliere il dipendente?', a: 'Sì, possono scegliere un dipendente specifico o lasciare che il sistema assegni automaticamente il primo disponibile.' },
+  { q: 'Posso gestire più dipendenti?', a: 'Sì! Nel modulo Salone ogni dipendente ha il suo calendario e servizi assegnati.' },
+  { q: 'Il modulo Coach supporta pacchetti?', a: 'Sì! Puoi creare pacchetti sedute con conteggio automatico e scadenze.' },
 ];
 
 const plans = [
   { name: 'Base', price: '9', features: ['Prenotazioni illimitate', 'Calendario completo', 'Gestione clienti', 'Pagina prenotazione pubblica'] },
-  { name: 'Pro', price: '19', features: ['Tutto di Base', 'Multi-dipendente', 'Promemoria automatici', 'Statistiche avanzate'], popular: true },
+  { name: 'Pro', price: '19', features: ['Tutto di Base', 'Multi-dipendente / Pacchetti', 'Promemoria automatici', 'Statistiche avanzate'], popular: true },
   { name: 'Premium', price: '29', features: ['Tutto di Pro', 'Automazioni', 'Report personalizzati', 'Supporto prioritario'] },
 ];
 
 export default function Landing() {
   const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'salone' | 'coach'>('salone');
+
+  const features = activeTab === 'salone' ? salonFeatures : coachFeatures;
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,29 +62,44 @@ export default function Landing() {
         <div className="container mx-auto text-center max-w-3xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-              <Star className="w-4 h-4" /> La piattaforma per il tuo salone
+              <Star className="w-4 h-4" /> La piattaforma per la tua attività
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-foreground leading-tight mb-6">
-              Gestisci il tuo salone<br />
+              Gestisci la tua attività<br />
               <span className="text-primary">senza complicazioni</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Calendario, dipendenti, servizi e prenotazioni online in un unico posto. Basta WhatsApp e agende cartacee.
+              Calendario, prenotazioni, clienti e molto altro. Per saloni e personal trainer. Basta WhatsApp e agende cartacee.
             </p>
-            <Button variant="hero" size="lg" onClick={() => navigate('/register')} className="text-base">
-              <Scissors className="w-5 h-5" /> Crea il tuo salone
-            </Button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button variant="hero" size="lg" onClick={() => navigate('/register')} className="text-base">
+                <Scissors className="w-5 h-5" /> Per Saloni
+              </Button>
+              <Button variant="outline" size="lg" onClick={() => navigate('/register')} className="text-base">
+                <Dumbbell className="w-5 h-5" /> Per Coach
+              </Button>
+            </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features with tabs */}
       <section className="py-20 px-4 bg-secondary/30">
         <div className="container mx-auto max-w-5xl">
-          <h2 className="text-3xl font-bold text-center mb-12">Tutto ciò che ti serve</h2>
+          <h2 className="text-3xl font-bold text-center mb-6">Tutto ciò che ti serve</h2>
+          <div className="flex justify-center gap-2 mb-10">
+            <button onClick={() => setActiveTab('salone')}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'salone' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+              <Scissors className="w-4 h-4 inline mr-2" />Salone
+            </button>
+            <button onClick={() => setActiveTab('coach')}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'coach' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+              <Dumbbell className="w-4 h-4 inline mr-2" />Coach
+            </button>
+          </div>
           <div className="grid md:grid-cols-2 gap-6">
             {features.map((f, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} viewport={{ once: true }}
+              <motion.div key={`${activeTab}-${i}`} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} viewport={{ once: true }}
                 className="glass-card p-6 hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mb-4">
                   <f.icon className="w-6 h-6 text-primary-foreground" />
@@ -93,8 +118,7 @@ export default function Landing() {
           <h2 className="text-3xl font-bold text-center mb-12">Come funziona</h2>
           <div className="grid md:grid-cols-3 gap-8">
             {steps.map((s, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 }} viewport={{ once: true }}
-                className="text-center">
+              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 }} viewport={{ once: true }} className="text-center">
                 <div className="text-5xl font-bold text-primary/20 mb-4">{s.num}</div>
                 <h3 className="text-xl font-semibold mb-2">{s.title}</h3>
                 <p className="text-muted-foreground">{s.desc}</p>
@@ -115,16 +139,9 @@ export default function Landing() {
                 className={`glass-card p-6 relative ${p.popular ? 'ring-2 ring-primary' : ''}`}>
                 {p.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">Popolare</div>}
                 <h3 className="text-xl font-semibold mb-1">{p.name}</h3>
-                <div className="flex items-baseline gap-1 mb-4">
-                  <span className="text-3xl font-bold">{p.price}€</span>
-                  <span className="text-muted-foreground text-sm">/mese</span>
-                </div>
+                <div className="flex items-baseline gap-1 mb-4"><span className="text-3xl font-bold">{p.price}€</span><span className="text-muted-foreground text-sm">/mese</span></div>
                 <ul className="space-y-2">
-                  {p.features.map((f, fi) => (
-                    <li key={fi} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" /> {f}
-                    </li>
-                  ))}
+                  {p.features.map((f, fi) => <li key={fi} className="flex items-center gap-2 text-sm"><CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" /> {f}</li>)}
                 </ul>
                 <Button variant="outline" className="w-full mt-6" disabled>Prossimamente</Button>
               </motion.div>
@@ -154,7 +171,7 @@ export default function Landing() {
       {/* CTA */}
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold mb-4">Pronto a digitalizzare il tuo salone?</h2>
+          <h2 className="text-3xl font-bold mb-4">Pronto a digitalizzare la tua attività?</h2>
           <p className="text-muted-foreground mb-8">Inizia gratis oggi. Nessuna carta richiesta.</p>
           <Button variant="hero" size="lg" onClick={() => navigate('/register')}>
             Inizia ora <ArrowRight className="w-5 h-5" />
