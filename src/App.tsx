@@ -13,6 +13,7 @@ import ClientsPage from "./pages/ClientsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ServicesPage from "./pages/ServicesPage";
 import EmployeesPage from "./pages/EmployeesPage";
+import PackagesPage from "./pages/PackagesPage";
 import PublicBooking from "./pages/PublicBooking";
 import EmployeePage from "./pages/EmployeePage";
 import AppLayout from "./components/layout/AppLayout";
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/services" element={<ServicesPage />} />
               <Route path="/employees" element={<EmployeesPage />} />
+              <Route path="/packages" element={<PackagesPage />} />
             </Route>
             <Route path="/:slug/:slugAndToken" element={<EmployeePage />} />
             <Route path="/:slug" element={<PublicBooking />} />

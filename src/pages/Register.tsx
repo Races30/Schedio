@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Scissors, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Scissors, Dumbbell, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const DAYS = [
@@ -23,14 +23,16 @@ const generateToken = () => {
 export default function Register() {
   const navigate = useNavigate();
   const { signUp, refreshActivity } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0 = category, 1 = info, 2 = schedule, 3 = credentials
   const [loading, setLoading] = useState(false);
+  const [category, setCategory] = useState<'salone' | 'coach'>('salone');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activityName, setActivityName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [ownerSurname, setOwnerSurname] = useState('');
+  const [description, setDescription] = useState('');
   const [openingDays, setOpeningDays] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const [openStart, setOpenStart] = useState('09:00');
   const [openEnd, setOpenEnd] = useState('19:00');
@@ -39,17 +41,15 @@ export default function Register() {
   const [bufferMinutes, setBufferMinutes] = useState(5);
   const [hostWorksInSalon, setHostWorksInSalon] = useState(true);
 
-  const toggleDay = (d: number) => {
-    setOpeningDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
-  };
+  const isSalone = category === 'salone';
 
-  const generateSlug = (name: string) => {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
-  };
+  const toggleDay = (d: number) => setOpeningDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
 
-  const makeEmployeeSlug = (name: string, surname: string) => {
-    return `${name}-${surname}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  };
+  const generateSlug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+
+  const makeEmployeeSlug = (name: string, surname: string) =>
+    `${name}-${surname}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   const handleSubmit = async () => {
     if (!email || !password || !activityName || !ownerName || !ownerSurname) {
@@ -68,7 +68,6 @@ export default function Register() {
         return;
       }
 
-      // Check existing activity
       const { data: existingActivity } = await supabase
         .from('activities')
         .select('id')
@@ -81,19 +80,20 @@ export default function Register() {
           user_id: authUserId,
           name: activityName,
           slug: generateSlug(activityName),
-          category: 'salone',
+          category,
           owner_name: `${ownerName} ${ownerSurname}`,
+          description: description || null,
           opening_days: openingDays,
           opening_hours: { start: openStart, end: openEnd },
           theme_color: themeColor,
           default_appointment_duration_minutes: defaultDuration,
           buffer_minutes: bufferMinutes,
-          host_works_in_salon: hostWorksInSalon,
+          host_works_in_salon: isSalone ? hostWorksInSalon : false,
         }).select('id').single();
 
         if (actError) throw actError;
 
-        if (newActivity && hostWorksInSalon) {
+        if (newActivity && isSalone && hostWorksInSalon) {
           await supabase.from('employees').insert({
             activity_id: newActivity.id,
             name: ownerName,
@@ -118,6 +118,9 @@ export default function Register() {
     }
   };
 
+  const CategoryIcon = isSalone ? Scissors : Dumbbell;
+  const totalSteps = 4;
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
@@ -127,43 +130,68 @@ export default function Register() {
 
         <div className="glass-card p-8">
           <div className="flex items-center gap-3 mb-1">
-            <Scissors className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-bold">Crea il tuo salone</h1>
+            <CategoryIcon className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-bold">{step === 0 ? 'Cosa gestisci?' : isSalone ? 'Crea il tuo salone' : 'Crea il tuo profilo coach'}</h1>
           </div>
-          <p className="text-muted-foreground mb-6">Passo {step} di 3</p>
+          <p className="text-muted-foreground mb-6">Passo {step + 1} di {totalSteps}</p>
 
           <div className="flex gap-2 mb-8">
-            {[1, 2, 3].map(s => (
+            {Array.from({ length: totalSteps }, (_, s) => (
               <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
             ))}
           </div>
 
+          {/* Step 0: Category */}
+          {step === 0 && (
+            <div className="space-y-4">
+              <button onClick={() => { setCategory('salone'); setDefaultDuration(30); }}
+                className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'salone' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Scissors className="w-6 h-6 text-primary" /></div>
+                  <div><div className="font-semibold text-lg">Salone</div><div className="text-sm text-muted-foreground">Barbiere, parrucchiere, centro estetico</div></div>
+                </div>
+              </button>
+              <button onClick={() => { setCategory('coach'); setDefaultDuration(60); setHostWorksInSalon(false); }}
+                className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'coach' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Dumbbell className="w-6 h-6 text-primary" /></div>
+                  <div><div className="font-semibold text-lg">Coach / Personal Trainer</div><div className="text-sm text-muted-foreground">Sessioni, pacchetti, progressi clienti</div></div>
+                </div>
+              </button>
+              <Button onClick={() => setStep(1)} className="w-full" variant="hero">
+                Continua <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Step 1: Info */}
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <Label>Nome salone *</Label>
-                <Input value={activityName} onChange={e => setActivityName(e.target.value)} placeholder="es. Barber Shop Roma" />
+                <Label>{isSalone ? 'Nome salone *' : 'Nome attività *'}</Label>
+                <Input value={activityName} onChange={e => setActivityName(e.target.value)} placeholder={isSalone ? 'es. Barber Shop Roma' : 'es. FitCoach Milano'} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Nome titolare *</Label>
-                  <Input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Marco" />
-                </div>
-                <div>
-                  <Label>Cognome titolare *</Label>
-                  <Input value={ownerSurname} onChange={e => setOwnerSurname(e.target.value)} placeholder="Rossi" />
-                </div>
+                <div><Label>Nome *</Label><Input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Marco" /></div>
+                <div><Label>Cognome *</Label><Input value={ownerSurname} onChange={e => setOwnerSurname(e.target.value)} placeholder="Rossi" /></div>
               </div>
+              {!isSalone && (
+                <div>
+                  <Label>Descrizione / Specializzazione</Label>
+                  <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="es. Personal Trainer certificato, specializzato in..." />
+                </div>
+              )}
               <Button onClick={() => setStep(2)} disabled={!activityName || !ownerName || !ownerSurname} className="w-full" variant="hero">
                 Continua <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           )}
 
+          {/* Step 2: Schedule */}
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <Label className="mb-3 block">Giorni di apertura</Label>
+                <Label className="mb-3 block">Giorni lavorativi</Label>
                 <div className="flex gap-2">
                   {DAYS.map(d => (
                     <button key={d.value} onClick={() => toggleDay(d.value)}
@@ -174,22 +202,16 @@ export default function Register() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Apertura</Label>
-                  <Input type="time" value={openStart} onChange={e => setOpenStart(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Chiusura</Label>
-                  <Input type="time" value={openEnd} onChange={e => setOpenEnd(e.target.value)} />
-                </div>
+                <div><Label>Apertura</Label><Input type="time" value={openStart} onChange={e => setOpenStart(e.target.value)} /></div>
+                <div><Label>Chiusura</Label><Input type="time" value={openEnd} onChange={e => setOpenEnd(e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Durata media appuntamento (min)</Label>
+                  <Label>{isSalone ? 'Durata media appuntamento' : 'Durata media sessione'} (min)</Label>
                   <Input type="number" value={defaultDuration} onChange={e => setDefaultDuration(Number(e.target.value))} min={5} max={240} step={5} />
                 </div>
                 <div>
-                  <Label>Buffer tra appuntamenti (min)</Label>
+                  <Label>Buffer tra {isSalone ? 'appuntamenti' : 'sessioni'} (min)</Label>
                   <Input type="number" value={bufferMinutes} onChange={e => setBufferMinutes(Number(e.target.value))} min={0} max={60} step={5} />
                 </div>
               </div>
@@ -200,55 +222,30 @@ export default function Register() {
                   <span className="text-sm text-muted-foreground">{themeColor}</span>
                 </div>
               </div>
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <Label className="text-base">Lavori anche tu nel salone?</Label>
-                <p className="text-sm text-muted-foreground">
-                  Se sì, avrai un profilo operatore (come gli altri dipendenti) e potrai comparire nelle prenotazioni. Il calendario principale resta il tuo strumento di lavoro.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={hostWorksInSalon ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => setHostWorksInSalon(true)}
-                  >
-                    Sì, opero in salone
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={!hostWorksInSalon ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => setHostWorksInSalon(false)}
-                  >
-                    No, solo gestione
-                  </Button>
+              {isSalone && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <Label className="text-base">Lavori anche tu nel salone?</Label>
+                  <p className="text-sm text-muted-foreground">Se sì, avrai un profilo operatore e potrai ricevere prenotazioni.</p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant={hostWorksInSalon ? 'default' : 'outline'} className="flex-1" onClick={() => setHostWorksInSalon(true)}>Sì, opero in salone</Button>
+                    <Button type="button" variant={!hostWorksInSalon ? 'default' : 'outline'} className="flex-1" onClick={() => setHostWorksInSalon(false)}>No, solo gestione</Button>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(1)}>
-                  <ArrowLeft className="w-4 h-4" /> Indietro
-                </Button>
-                <Button onClick={() => setStep(3)} className="flex-1" variant="hero">
-                  Continua <ArrowRight className="w-4 h-4" />
-                </Button>
+                <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4" /> Indietro</Button>
+                <Button onClick={() => setStep(3)} className="flex-1" variant="hero">Continua <ArrowRight className="w-4 h-4" /></Button>
               </div>
             </div>
           )}
 
+          {/* Step 3: Credentials */}
           {step === 3 && (
             <div className="space-y-6">
-              <div>
-                <Label>Email *</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la-tua@email.com" />
-              </div>
-              <div>
-                <Label>Password *</Label>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimo 6 caratteri" />
-              </div>
+              <div><Label>Email *</Label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la-tua@email.com" /></div>
+              <div><Label>Password *</Label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimo 6 caratteri" /></div>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(2)}>
-                  <ArrowLeft className="w-4 h-4" /> Indietro
-                </Button>
+                <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4" /> Indietro</Button>
                 <Button onClick={handleSubmit} className="flex-1" variant="hero" disabled={loading || !email || !password}>
                   {loading ? 'Creazione...' : 'Crea account'}
                 </Button>

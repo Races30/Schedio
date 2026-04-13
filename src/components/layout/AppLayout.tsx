@@ -1,17 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, LayoutDashboard, Settings, ExternalLink, LogOut, Menu, X, Scissors, Contact } from 'lucide-react';
+import { Calendar, Users, LayoutDashboard, Settings, ExternalLink, LogOut, Menu, X, Scissors, Contact, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
-
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/calendar', icon: Calendar, label: 'Calendario' },
-  { to: '/clients', icon: Users, label: 'Clienti' },
-  { to: '/services', icon: Scissors, label: 'Servizi' },
-  { to: '/employees', icon: Contact, label: 'Dipendenti' },
-  { to: '/settings', icon: Settings, label: 'Impostazioni' },
-];
 
 export default function AppLayout() {
   const { user, activity, loading, signOut } = useAuth();
@@ -19,15 +10,24 @@ export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
 
   if (!user) return <Navigate to="/login" replace />;
   if (!activity) return <Navigate to="/register" replace />;
+
+  const isSalone = activity.category === 'salone';
+  const isCoach = activity.category === 'coach';
+
+  const navItems = [
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', show: true },
+    { to: '/calendar', icon: Calendar, label: 'Calendario', show: true },
+    { to: '/clients', icon: Users, label: 'Clienti', show: true },
+    { to: '/services', icon: Scissors, label: isCoach ? 'Sessioni' : 'Servizi', show: true },
+    { to: '/employees', icon: Contact, label: 'Dipendenti', show: isSalone },
+    { to: '/packages', icon: Package, label: 'Pacchetti', show: isCoach },
+    { to: '/settings', icon: Settings, label: 'Impostazioni', show: true },
+  ].filter(item => item.show);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -80,9 +80,7 @@ export default function AppLayout() {
           </div>
         )}
 
-        <main className="flex-1 overflow-auto">
-          <Outlet />
-        </main>
+        <main className="flex-1 overflow-auto"><Outlet /></main>
       </div>
     </div>
   );

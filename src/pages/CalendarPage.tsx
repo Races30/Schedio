@@ -17,10 +17,17 @@ import {
   addMinutesToTime,
   getDayNameShort,
   appointmentOverlapsSlot,
+  appointmentWithBufferOverlapsSlot,
+  slotIsBufferOnly,
   slotContainingStart,
+  roundToInterval,
+  timeToMinutes,
 } from '@/utils/dateHelpers';
 import { filterBookableEmployees, employeeDisplayLabel } from '@/utils/salonEmployees';
 import { toast } from 'sonner';
+
+const SLOT_INTERVAL = 15;
+const SLOT_HEIGHT = 36; // px per 15-min slot
 
 type ViewMode = 'day' | 'week';
 
@@ -35,6 +42,8 @@ export default function CalendarPage() {
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
   const [filterServiceId, setFilterServiceId] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  const isSalone = activity?.category === 'salone';
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -101,7 +110,7 @@ export default function CalendarPage() {
     return list;
   }, [appointments, filterEmployeeId, filterServiceId, filterStatus]);
 
-  const hours = activity ? generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, 30) : [];
+  const hours = activity ? generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, SLOT_INTERVAL) : [];
 
   const navigateDate = (dir: number) => {
     setCurrentDate((prev) => addDays(prev, dir * (viewMode === 'day' ? 1 : 7)));
@@ -122,7 +131,7 @@ export default function CalendarPage() {
   const getApptsStartingInSlot = (day: Date, time: string) => {
     const dateStr = format(day, 'yyyy-MM-dd');
     return filteredAppts.filter(
-      (a) => a.date === dateStr && slotContainingStart(a.start_time, time)
+      (a) => a.date === dateStr && slotContainingStart(a.start_time, time, SLOT_INTERVAL)
     );
   };
 
@@ -131,7 +140,16 @@ export default function CalendarPage() {
     return filteredAppts.some(
       (a) =>
         a.date === dateStr &&
-        appointmentOverlapsSlot(a.start_time, a.end_time, time)
+        appointmentWithBufferOverlapsSlot(a.start_time, a.end_time, a.buffer_time_minutes || 0, time, SLOT_INTERVAL)
+    );
+  };
+
+  const slotIsBuffer = (day: Date, time: string) => {
+    const dateStr = format(day, 'yyyy-MM-dd');
+    return filteredAppts.some(
+      (a) =>
+        a.date === dateStr &&
+        slotIsBufferOnly(a.end_time, a.buffer_time_minutes || 0, time, SLOT_INTERVAL)
     );
   };
 
@@ -168,7 +186,7 @@ export default function CalendarPage() {
           </Button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          {bookableEmployees.length > 0 && (
+          {isSalone && bookableEmployees.length > 0 && (
             <Select value={filterEmployeeId} onValueChange={setFilterEmployeeId}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Dipendente" />
@@ -213,18 +231,12 @@ export default function CalendarPage() {
             Oggi
           </Button>
           <div className="inline-flex bg-muted rounded-lg p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('day')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
-            >
+            <button type="button" onClick={() => setViewMode('day')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Giorno
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('week')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
-            >
+            <button type="button" onClick={() => setViewMode('week')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Settimana
             </button>
           </div>
@@ -233,17 +245,12 @@ export default function CalendarPage() {
 
       <div className="glass-card overflow-x-auto">
         <div className={`min-w-[600px] ${viewMode === 'day' ? 'min-w-[400px]' : ''}`}>
-          <div
-            className={`grid border-b border-border ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}
-          >
+          <div className={`grid border-b border-border ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}>
             <div className="p-2" />
             {displayDays.map((day, i) => {
               const isToday = isSameDay(day, now);
               return (
-                <div
-                  key={i}
-                  className={`p-3 text-center border-l border-border ${isToday ? 'bg-primary/5' : ''}`}
-                >
+                <div key={i} className={`p-3 text-center border-l border-border ${isToday ? 'bg-primary/5' : ''}`}>
                   <div className="text-xs text-muted-foreground">{getDayNameShort(day.getDay())}</div>
                   <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>{format(day, 'd')}</div>
                 </div>
@@ -251,86 +258,93 @@ export default function CalendarPage() {
             })}
           </div>
 
-          {hours.map((time) => (
-            <div
-              key={time}
-              className={`grid border-b border-border/50 ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}
-            >
-              <div className="p-2 text-xs text-muted-foreground text-right pr-3 py-3 relative">
-                {time}
-                {isSameDay(currentDate, now) &&
-                  currentTimeStr >= time &&
-                  currentTimeStr < addMinutesToTime(time, 30) && (
-                    <div className="absolute right-0 w-2 h-2 rounded-full bg-destructive" />
-                  )}
-              </div>
-              {displayDays.map((day, di) => {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const slotAppts = getApptsStartingInSlot(day, time);
-                const busy = slotHasOverlap(day, time);
-                const isNow =
-                  isSameDay(day, now) &&
-                  currentTimeStr >= time &&
-                  currentTimeStr < addMinutesToTime(time, 30);
+          {hours.map((time, timeIdx) => {
+            const isHourMark = timeIdx % 4 === 0;
+            return (
+              <div key={time}
+                className={`grid ${isHourMark ? 'border-b border-border/50' : 'border-b border-border/20'} ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}>
+                <div className="p-1 text-xs text-muted-foreground text-right pr-3 relative" style={{ height: `${SLOT_HEIGHT}px`, lineHeight: `${SLOT_HEIGHT}px` }}>
+                  {isHourMark ? time : ''}
+                  {isSameDay(currentDate, now) &&
+                    currentTimeStr >= time &&
+                    currentTimeStr < addMinutesToTime(time, SLOT_INTERVAL) && (
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-destructive" />
+                    )}
+                </div>
+                {displayDays.map((day, di) => {
+                  const dateStr = format(day, 'yyyy-MM-dd');
+                  const slotAppts = getApptsStartingInSlot(day, time);
+                  const busy = slotHasOverlap(day, time);
+                  const isBuffer = slotIsBuffer(day, time);
+                  const isNow = isSameDay(day, now) && currentTimeStr >= time && currentTimeStr < addMinutesToTime(time, SLOT_INTERVAL);
 
-                return (
-                  <div
-                    key={di}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => !busy && openNewAppt(dateStr, time)}
-                    onKeyDown={(e) => {
-                      if (!busy && (e.key === 'Enter' || e.key === ' ')) {
-                        e.preventDefault();
-                        openNewAppt(dateStr, time);
-                      }
-                    }}
-                    className={`border-l border-border/50 min-h-[48px] p-0.5 transition-colors relative ${isNow ? 'bg-primary/5' : ''} ${busy ? 'bg-muted/20' : 'cursor-pointer hover:bg-primary/5'}`}
-                  >
-                    {slotAppts.map((appt) => {
-                      const durationSlots = Math.ceil(appt.duration_minutes / 30);
-                      const emp = getEmployeeForAppt(appt);
-                      const apptColor = emp?.color || appt.color || appt.service?.color || '#3b82f6';
-                      return (
-                        <div
-                          key={appt.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditAppt(appt);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.stopPropagation();
-                              openEditAppt(appt);
-                            }
-                          }}
-                          className={`rounded-md p-1.5 text-xs cursor-pointer hover:opacity-80 ${statusColor(appt.status)}`}
-                          style={{
-                            backgroundColor: apptColor + '20',
-                            height: `${durationSlots * 48 - 4}px`,
-                            position: 'relative',
-                            zIndex: 10,
-                          }}
-                        >
-                          <div className="font-medium truncate" style={{ color: apptColor }}>
-                            {appt.client?.name || appt.client_name || 'Cliente'}
+                  return (
+                    <div key={di} role="button" tabIndex={0}
+                      onClick={() => !busy && openNewAppt(dateStr, time)}
+                      onKeyDown={(e) => {
+                        if (!busy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openNewAppt(dateStr, time); }
+                      }}
+                      className={`border-l border-border/50 p-0.5 transition-colors relative ${isNow ? 'bg-primary/5' : ''} ${isBuffer ? 'bg-warning/10' : busy ? 'bg-muted/20' : 'cursor-pointer hover:bg-primary/5'}`}
+                      style={{ minHeight: `${SLOT_HEIGHT}px` }}>
+                      {isBuffer && slotAppts.length === 0 && (
+                        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, currentColor 3px, currentColor 4px)' }} />
+                      )}
+                      {slotAppts.map((appt) => {
+                        const totalSlots = Math.ceil(appt.duration_minutes / SLOT_INTERVAL);
+                        const bufferSlots = Math.ceil((appt.buffer_time_minutes || 0) / SLOT_INTERVAL);
+                        const emp = getEmployeeForAppt(appt);
+                        const apptColor = emp?.color || appt.color || appt.service?.color || '#3b82f6';
+                        return (
+                          <div key={appt.id} role="button" tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); openEditAppt(appt); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); openEditAppt(appt); } }}
+                            className={`rounded-md text-xs cursor-pointer hover:opacity-80 ${statusColor(appt.status)}`}
+                            style={{
+                              backgroundColor: apptColor + '20',
+                              height: `${totalSlots * SLOT_HEIGHT - 4}px`,
+                              position: 'relative',
+                              zIndex: 10,
+                              padding: '2px 6px',
+                            }}>
+                            <div className="font-medium truncate" style={{ color: apptColor }}>
+                              {appt.client?.name || appt.client_name || 'Cliente'}
+                            </div>
+                            <div className="truncate text-muted-foreground">
+                              {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
+                              {emp && <span className="ml-1">• {emp.name}</span>}
+                            </div>
+                            {bufferSlots > 0 && (
+                              <div className="absolute bottom-0 left-0 right-0 opacity-30 rounded-b-md"
+                                style={{
+                                  height: `${bufferSlots * SLOT_HEIGHT}px`,
+                                  backgroundColor: apptColor,
+                                  backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.4) 3px, rgba(255,255,255,0.4) 4px)',
+                                }} />
+                            )}
                           </div>
-                          <div className="truncate text-muted-foreground">
-                            {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
-                            {emp && <span className="ml-1">• {emp.name}</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {/* Now-line indicator */}
+      {isSameDay(currentDate, now) && activity && (() => {
+        const openMins = timeToMinutes(activity.opening_hours.start);
+        const nowMins = timeToMinutes(currentTimeStr);
+        const offsetSlots = (nowMins - openMins) / SLOT_INTERVAL;
+        if (offsetSlots < 0) return null;
+        return (
+          <div className="relative pointer-events-none" style={{ marginTop: `-${(hours.length - offsetSlots) * SLOT_HEIGHT}px` }}>
+            <div className="absolute left-[80px] right-0 border-t-2 border-destructive z-20" />
+          </div>
+        );
+      })()}
 
       {activity && (
         <AppointmentDialog
@@ -343,6 +357,7 @@ export default function CalendarPage() {
           clients={clients}
           services={services}
           bookableEmployees={bookableEmployees}
+          isSalone={isSalone}
         />
       )}
     </div>
@@ -350,25 +365,11 @@ export default function CalendarPage() {
 }
 
 function AppointmentDialog({
-  open,
-  onClose,
-  appointment,
-  defaultDate,
-  defaultTime,
-  activity,
-  clients,
-  services,
-  bookableEmployees,
+  open, onClose, appointment, defaultDate, defaultTime, activity, clients, services, bookableEmployees, isSalone,
 }: {
-  open: boolean;
-  onClose: () => void;
-  appointment: Appointment | null;
-  defaultDate: string;
-  defaultTime: string;
+  open: boolean; onClose: () => void; appointment: Appointment | null; defaultDate: string; defaultTime: string;
   activity: NonNullable<ReturnType<typeof useAuth>['activity']>;
-  clients: Client[];
-  services: Service[];
-  bookableEmployees: Employee[];
+  clients: Client[]; services: Service[]; bookableEmployees: Employee[]; isSalone: boolean;
 }) {
   const queryClient = useQueryClient();
   const [clientId, setClientId] = useState('');
@@ -398,7 +399,6 @@ function AppointmentDialog({
   }, [open, appointment?.id, defaultDate, defaultTime, appointment, activity]);
 
   const endTime = addMinutesToTime(startTime, duration);
-
   const selectedService = services.find((s) => s.id === serviceId);
 
   const handleServiceChange = (sid: string) => {
@@ -408,12 +408,16 @@ function AppointmentDialog({
     if (svc) setDuration(svc.duration_minutes);
   };
 
+  const handleTimeChange = (val: string) => {
+    setStartTime(roundToInterval(val, SLOT_INTERVAL));
+  };
+
   const save = async () => {
-    if (bookableEmployees.length === 0) {
-      toast.error('Aggiungi almeno un dipendente attivo in Dipendenti prima di creare appuntamenti.');
+    if (isSalone && bookableEmployees.length === 0) {
+      toast.error('Aggiungi almeno un dipendente attivo prima di creare appuntamenti.');
       return;
     }
-    if (!employeeId) {
+    if (isSalone && !employeeId) {
       toast.error('Seleziona il dipendente assegnato.');
       return;
     }
@@ -423,7 +427,7 @@ function AppointmentDialog({
         activity_id: activity.id,
         client_id: clientId || null,
         service_id: serviceId || null,
-        employee_id: employeeId,
+        employee_id: isSalone ? employeeId : null,
         date,
         start_time: startTime,
         end_time: endTime,
@@ -473,7 +477,7 @@ function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{appointment ? 'Modifica appuntamento' : 'Nuovo appuntamento'}</DialogTitle>
         </DialogHeader>
@@ -482,105 +486,57 @@ function AppointmentDialog({
             <div>
               <Label>Cliente</Label>
               <Select value={clientId || '__none__'} onValueChange={(v) => setClientId(v === '__none__' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona cliente" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleziona cliente" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessuno / walk-in</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
+                  {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {!clientId && (
-            <div>
-              <Label>Nome cliente</Label>
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Nome cliente"
-              />
-            </div>
+            <div><Label>Nome cliente</Label><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nome cliente" /></div>
           )}
           {services.length > 0 && (
             <div>
-              <Label>Servizio</Label>
+              <Label>{isSalone ? 'Servizio' : 'Sessione'}</Label>
               <Select value={serviceId || '__none__'} onValueChange={(v) => handleServiceChange(v === '__none__' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona servizio" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={isSalone ? 'Seleziona servizio' : 'Seleziona sessione'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessuno</SelectItem>
-                  {services.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.duration_minutes} min){!s.is_active ? ' — inattivo' : ''}
-                    </SelectItem>
-                  ))}
+                  {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min){!s.is_active ? ' — inattivo' : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
-          <div>
-            <Label>Dipendente *</Label>
-            <Select
-              value={employeeId || '__none__'}
-              onValueChange={(v) => setEmployeeId(v === '__none__' ? '' : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleziona dipendente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Seleziona…</SelectItem>
-                {bookableEmployees.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {employeeDisplayLabel(e, activity)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+          {isSalone && (
             <div>
-              <Label>Data</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Label>Dipendente *</Label>
+              <Select value={employeeId || '__none__'} onValueChange={(v) => setEmployeeId(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Seleziona dipendente" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Seleziona…</SelectItem>
+                  {bookableEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{employeeDisplayLabel(e, activity)}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div><Label>Data</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
             <div>
               <Label>Orario</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <Input type="time" step={SLOT_INTERVAL * 60} value={startTime} onChange={(e) => handleTimeChange(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">Multipli di {SLOT_INTERVAL} min</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Durata (min)</Label>
-              <Input
-                type="number"
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                min={5}
-                step={5}
-              />
-            </div>
-            <div>
-              <Label>Buffer dopo (min)</Label>
-              <Input
-                type="number"
-                value={bufferMinutes}
-                onChange={(e) => setBufferMinutes(Number(e.target.value))}
-                min={0}
-                step={5}
-              />
-            </div>
+            <div><Label>Durata (min)</Label><Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={5} step={5} /></div>
+            <div><Label>Buffer dopo (min)</Label><Input type="number" value={bufferMinutes} onChange={(e) => setBufferMinutes(Number(e.target.value))} min={0} step={5} /></div>
           </div>
           <div>
             <Label>Stato</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as Appointment['status'])}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="confirmed">Confermato</SelectItem>
                 <SelectItem value="pending">In attesa</SelectItem>
@@ -589,17 +545,12 @@ function AppointmentDialog({
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Note</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note opzionali" />
+          <div><Label>Note</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note opzionali" /></div>
+          <div className="text-sm text-muted-foreground">
+            Fine prevista: {endTime} {bufferMinutes > 0 && `(+${bufferMinutes} min buffer = libero dalle ${addMinutesToTime(endTime, bufferMinutes)})`}
           </div>
-          <div className="text-sm text-muted-foreground">Fine prevista: {endTime}</div>
           <div className="flex gap-2">
-            {appointment && (
-              <Button variant="destructive" onClick={deleteAppt} disabled={loading}>
-                Elimina
-              </Button>
-            )}
+            {appointment && <Button variant="destructive" onClick={deleteAppt} disabled={loading}>Elimina</Button>}
             <Button variant="hero" onClick={save} disabled={loading} className="flex-1">
               {loading ? 'Salvataggio...' : appointment ? 'Aggiorna' : 'Crea'}
             </Button>
