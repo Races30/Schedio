@@ -17,12 +17,12 @@ export const timeToMinutes = (time: string): number => {
   return (h || 0) * 60 + (m || 0);
 };
 
-/** True if appointment overlaps the half-hour slot starting at slotTime */
+/** True if appointment overlaps the slot starting at slotTime (default 15 min) */
 export const appointmentOverlapsSlot = (
   apptStart: string,
   apptEnd: string,
   slotTime: string,
-  slotMinutes = 30
+  slotMinutes = 15
 ): boolean => {
   const a0 = timeToMinutes(apptStart);
   const a1 = timeToMinutes(apptEnd);
@@ -31,8 +31,38 @@ export const appointmentOverlapsSlot = (
   return a0 < s1 && a1 > s0;
 };
 
+/** True if appointment+buffer overlaps the slot */
+export const appointmentWithBufferOverlapsSlot = (
+  apptStart: string,
+  apptEnd: string,
+  bufferMinutes: number,
+  slotTime: string,
+  slotMinutes = 15
+): boolean => {
+  const a0 = timeToMinutes(apptStart);
+  const a1 = timeToMinutes(apptEnd) + bufferMinutes;
+  const s0 = timeToMinutes(slotTime);
+  const s1 = s0 + slotMinutes;
+  return a0 < s1 && a1 > s0;
+};
+
+/** Check if a slot falls in the buffer zone only (after end_time, before end_time+buffer) */
+export const slotIsBufferOnly = (
+  apptEnd: string,
+  bufferMinutes: number,
+  slotTime: string,
+  slotMinutes = 15
+): boolean => {
+  if (bufferMinutes <= 0) return false;
+  const endMin = timeToMinutes(apptEnd);
+  const bufferEnd = endMin + bufferMinutes;
+  const s0 = timeToMinutes(slotTime);
+  const s1 = s0 + slotMinutes;
+  return s0 >= endMin && s1 <= bufferEnd;
+};
+
 /** Slot row where the appointment block should be anchored (start falls inside this slot) */
-export const slotContainingStart = (startTime: string, slotTime: string, slotMinutes = 30): boolean => {
+export const slotContainingStart = (startTime: string, slotTime: string, slotMinutes = 15): boolean => {
   const s = timeToMinutes(normalizeTime(startTime));
   const slotStart = timeToMinutes(slotTime);
   return s >= slotStart && s < slotStart + slotMinutes;
@@ -58,7 +88,7 @@ export const addMinutesToTime = (time: string, minutes: number): string => {
   return format(result, 'HH:mm');
 };
 
-export const generateTimeSlots = (start: string, end: string, intervalMinutes: number = 30): string[] => {
+export const generateTimeSlots = (start: string, end: string, intervalMinutes: number = 15): string[] => {
   const slots: string[] = [];
   let current = start;
   while (current < end) {
@@ -66,6 +96,15 @@ export const generateTimeSlots = (start: string, end: string, intervalMinutes: n
     current = addMinutesToTime(current, intervalMinutes);
   }
   return slots;
+};
+
+/** Round a time string down to the nearest N-minute interval */
+export const roundToInterval = (time: string, interval: number = 15): string => {
+  const mins = timeToMinutes(time);
+  const rounded = Math.floor(mins / interval) * interval;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
 export const getDayName = (dayIndex: number): string => {

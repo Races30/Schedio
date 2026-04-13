@@ -1,5 +1,7 @@
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed';
 
+export type ActivityCategory = 'salone' | 'coach';
+
 export interface Activity {
   id: string;
   user_id: string;
@@ -7,7 +9,7 @@ export interface Activity {
   slug: string;
   category: string;
   owner_name: string;
-  /** When true, the owner has an employee row and can be assigned like other staff */
+  description?: string | null;
   host_works_in_salon?: boolean;
   timezone: string;
   opening_days: number[];
@@ -28,6 +30,9 @@ export interface Client {
   email: string | null;
   notes: string | null;
   preferences: Record<string, unknown> | null;
+  objective?: string | null;
+  level?: string | null;
+  frequency?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -97,7 +102,42 @@ export interface AvailabilityBlock {
   day_of_week: number;
   start_time: string;
   end_time: string;
-  type: 'available' | 'blocked';
+  type: 'available' | 'blocked' | 'break' | 'lunch' | 'closure';
+  notes: string | null;
+  employee_id?: string | null;
+  start_datetime?: string | null;
+  end_datetime?: string | null;
+  created_at: string;
+}
+
+export interface Package {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  name: string;
+  total_sessions: number;
+  used_sessions: number;
+  price?: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgressEntry {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  measurement_date: string;
+  weight: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  chest?: number | null;
+  arms?: number | null;
+  thighs?: number | null;
+  photo_url: string | null;
   notes: string | null;
   created_at: string;
 }
