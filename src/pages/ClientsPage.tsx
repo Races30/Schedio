@@ -5,11 +5,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Phone, Mail, Edit } from 'lucide-react';
-import { Client, Appointment } from '@/types';
+import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler } from 'lucide-react';
+import { Client, Appointment, Package as PackageType, ProgressEntry } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatTime } from '@/utils/dateHelpers';
+
+const OBJECTIVES = ['Dimagrimento', 'Aumento massa', 'Tonificazione', 'Postura', 'Performance', 'Recupero forma', 'Mobilità', 'Preparazione atletica'];
+const LEVELS = ['Principiante', 'Intermedio', 'Avanzato', 'Esperto'];
 
 export default function ClientsPage() {
   const { activity } = useAuth();
@@ -18,6 +23,8 @@ export default function ClientsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [detailClient, setDetailClient] = useState<Client | null>(null);
+
+  const isCoach = activity?.category === 'coach';
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients', activity?.id],
@@ -41,9 +48,7 @@ export default function ClientsPage() {
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold">Clienti</h1>
-        <Button onClick={openNew} variant="hero">
-          <Plus className="w-4 h-4" /> Nuovo cliente
-        </Button>
+        <Button onClick={openNew} variant="hero"><Plus className="w-4 h-4" /> Nuovo cliente</Button>
       </div>
 
       <div className="relative mb-6">
@@ -59,16 +64,16 @@ export default function ClientsPage() {
       ) : (
         <div className="grid gap-3">
           {filtered.map(c => (
-            <div key={c.id} className="glass-card p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setDetailClient(c)}>
+            <div key={c.id} className="glass-card p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetailClient(c)}>
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
                 {c.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{c.name}</div>
-                <div className="text-sm text-muted-foreground flex items-center gap-3">
+                <div className="text-sm text-muted-foreground flex items-center gap-3 flex-wrap">
                   {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>}
                   {c.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {c.email}</span>}
+                  {isCoach && c.objective && <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {c.objective}</span>}
                 </div>
               </div>
               <Button variant="ghost" size="icon" onClick={e => { e.stopPropagation(); openEdit(c); }}>
@@ -79,30 +84,45 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <ClientDialog open={dialogOpen} onClose={() => setDialogOpen(false)} client={editClient} activityId={activity?.id || ''} />
+      <ClientDialog open={dialogOpen} onClose={() => setDialogOpen(false)} client={editClient} activityId={activity?.id || ''} isCoach={isCoach} />
 
       {detailClient && (
-        <ClientDetailDialog client={detailClient} onClose={() => setDetailClient(null)} activityId={activity?.id || ''} />
+        <ClientDetailDialog client={detailClient} onClose={() => setDetailClient(null)} activityId={activity?.id || ''} isCoach={isCoach} />
       )}
     </div>
   );
 }
 
-function ClientDialog({ open, onClose, client, activityId }: {
-  open: boolean; onClose: () => void; client: Client | null; activityId: string;
+/* ─── Client Create/Edit Dialog ─── */
+function ClientDialog({ open, onClose, client, activityId, isCoach }: {
+  open: boolean; onClose: () => void; client: Client | null; activityId: string; isCoach?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(client?.name || '');
   const [phone, setPhone] = useState(client?.phone || '');
   const [email, setEmail] = useState(client?.email || '');
   const [notes, setNotes] = useState(client?.notes || '');
+  const [objective, setObjective] = useState(client?.objective || '');
+  const [level, setLevel] = useState(client?.level || '');
+  const [frequency, setFrequency] = useState(client?.frequency || '');
   const [loading, setLoading] = useState(false);
+
+  useState(() => {
+    setName(client?.name || ''); setPhone(client?.phone || ''); setEmail(client?.email || '');
+    setNotes(client?.notes || ''); setObjective(client?.objective || '');
+    setLevel(client?.level || ''); setFrequency(client?.frequency || '');
+  });
 
   const save = async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
     setLoading(true);
     try {
-      const payload = { activity_id: activityId, name: name.trim(), phone: phone || null, email: email || null, notes: notes || null };
+      const payload: any = { activity_id: activityId, name: name.trim(), phone: phone || null, email: email || null, notes: notes || null };
+      if (isCoach) {
+        payload.objective = objective || null;
+        payload.level = level || null;
+        payload.frequency = frequency || null;
+      }
       if (client) {
         await supabase.from('clients').update(payload).eq('id', client.id);
         toast.success('Cliente aggiornato');
@@ -112,11 +132,7 @@ function ClientDialog({ open, onClose, client, activityId }: {
       }
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
   };
 
   const deleteClient = async () => {
@@ -127,30 +143,36 @@ function ClientDialog({ open, onClose, client, activityId }: {
       toast.success('Cliente eliminato');
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
   };
-
-  useState(() => {
-    setName(client?.name || '');
-    setPhone(client?.phone || '');
-    setEmail(client?.email || '');
-    setNotes(client?.notes || '');
-  });
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{client ? 'Modifica cliente' : 'Nuovo cliente'}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{client ? 'Modifica cliente' : 'Nuovo cliente'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div><Label>Nome *</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome e cognome" /></div>
           <div><Label>Telefono</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 123 456 7890" /></div>
           <div><Label>Email</Label><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" /></div>
+          {isCoach && (
+            <>
+              <div>
+                <Label>Obiettivo</Label>
+                <Select value={objective} onValueChange={setObjective}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona obiettivo" /></SelectTrigger>
+                  <SelectContent>{OBJECTIVES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Livello</Label>
+                <Select value={level} onValueChange={setLevel}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona livello" /></SelectTrigger>
+                  <SelectContent>{LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Frequenza allenamenti</Label><Input value={frequency} onChange={e => setFrequency(e.target.value)} placeholder="es. 3 volte a settimana" /></div>
+            </>
+          )}
           <div><Label>Note</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" /></div>
           <div className="flex gap-2">
             {client && <Button variant="destructive" onClick={deleteClient} disabled={loading}>Elimina</Button>}
@@ -164,62 +186,227 @@ function ClientDialog({ open, onClose, client, activityId }: {
   );
 }
 
-function ClientDetailDialog({ client, onClose, activityId }: {
-  client: Client; onClose: () => void; activityId: string;
+/* ─── Client Detail Dialog ─── */
+function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
+  client: Client; onClose: () => void; activityId: string; isCoach?: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'info' | 'progress'>('info');
+  const [showProgressForm, setShowProgressForm] = useState(false);
+
   const { data: appointments = [] } = useQuery({
     queryKey: ['client-appointments', client.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('appointments')
-        .select('*, service:services(*)')
-        .eq('client_id', client.id)
-        .order('date', { ascending: false })
-        .limit(10);
+      const { data } = await supabase.from('appointments').select('*, service:services(*)').eq('client_id', client.id).order('date', { ascending: false }).limit(10);
       return (data || []) as Appointment[];
     },
   });
 
+  const { data: clientPackages = [] } = useQuery({
+    queryKey: ['client-packages', client.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('packages').select('*').eq('client_id', client.id).order('created_at', { ascending: false });
+      return (data || []) as PackageType[];
+    },
+    enabled: !!isCoach,
+  });
+
+  const { data: progressEntries = [] } = useQuery({
+    queryKey: ['client-progress', client.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('progress_entries').select('*').eq('client_id', client.id).order('measurement_date', { ascending: false });
+      return (data || []) as ProgressEntry[];
+    },
+    enabled: !!isCoach,
+  });
+
+  const activePackage = clientPackages.find(p => p.status === 'active');
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
               {client.name.charAt(0).toUpperCase()}
             </div>
-            {client.name}
+            <div>
+              <div>{client.name}</div>
+              {isCoach && client.objective && <div className="text-xs font-normal text-muted-foreground flex items-center gap-1"><Target className="w-3 h-3" /> {client.objective}</div>}
+            </div>
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-6">
-          <div className="space-y-2">
-            {client.phone && <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground" /> {client.phone}</div>}
-            {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /> {client.email}</div>}
-            {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
+
+        {/* Tabs for coach */}
+        {isCoach && (
+          <div className="flex gap-2 border-b border-border pb-2">
+            <button onClick={() => setActiveTab('info')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'info' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Info & Storico</button>
+            <button onClick={() => setActiveTab('progress')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'progress' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+              <TrendingUp className="w-3.5 h-3.5 inline mr-1" />Progressi
+            </button>
           </div>
-          <div>
-            <h3 className="font-semibold mb-2">Storico appuntamenti</h3>
-            {appointments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nessun appuntamento</p>
-            ) : (
-              <div className="space-y-2">
-                {appointments.map(a => (
-                  <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
-                    <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">{a.service?.name || 'Appuntamento'}</div>
-                      <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
+        )}
+
+        {activeTab === 'info' && (
+          <div className="space-y-6">
+            {/* Contact info */}
+            <div className="space-y-2">
+              {client.phone && <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground" /> {client.phone}</div>}
+              {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /> {client.email}</div>}
+              {isCoach && client.level && <div className="flex items-center gap-2 text-sm"><TrendingUp className="w-4 h-4 text-muted-foreground" /> Livello: {client.level}</div>}
+              {isCoach && client.frequency && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza: {client.frequency}</div>}
+              {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
+            </div>
+
+            {/* Active package for coach */}
+            {isCoach && activePackage && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm">Pacchetto attivo: {activePackage.name}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div><div className="text-lg font-bold text-primary">{activePackage.total_sessions - activePackage.used_sessions}</div><div className="text-xs text-muted-foreground">Rimanenti</div></div>
+                  <div><div className="text-lg font-bold">{activePackage.used_sessions}</div><div className="text-xs text-muted-foreground">Usate</div></div>
+                  <div><div className="text-lg font-bold">{activePackage.total_sessions}</div><div className="text-xs text-muted-foreground">Totali</div></div>
+                </div>
+                {activePackage.end_date && <div className="text-xs text-muted-foreground mt-2">Scadenza: {formatDate(activePackage.end_date)}</div>}
+              </div>
+            )}
+
+            {/* Appointment history */}
+            <div>
+              <h3 className="font-semibold mb-2">Storico {isCoach ? 'sessioni' : 'appuntamenti'}</h3>
+              {appointments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun {isCoach ? 'sessione' : 'appuntamento'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {appointments.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+                      <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{a.service?.name || (isCoach ? 'Sessione' : 'Appuntamento')}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
+                      </div>
+                      <span className={`status-badge status-${a.status}`}>
+                        {a.status === 'confirmed' ? 'Conf.' : a.status === 'completed' ? 'Fatto' : a.status === 'cancelled' ? 'Ann.' : 'Attesa'}
+                      </span>
                     </div>
-                    <span className={`status-badge status-${a.status}`}>
-                      {a.status === 'confirmed' ? 'Conf.' : a.status === 'completed' ? 'Fatto' : a.status === 'cancelled' ? 'Ann.' : 'Attesa'}
-                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Progress tab (coach only) */}
+        {activeTab === 'progress' && isCoach && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Progressi</h3>
+              <Button variant="outline" size="sm" onClick={() => setShowProgressForm(!showProgressForm)}>
+                <Plus className="w-4 h-4" /> Nuova misurazione
+              </Button>
+            </div>
+
+            {showProgressForm && (
+              <ProgressForm clientId={client.id} activityId={activityId} onDone={() => { setShowProgressForm(false); queryClient.invalidateQueries({ queryKey: ['client-progress', client.id] }); }} />
+            )}
+
+            {/* Weight chart (simple bar) */}
+            {progressEntries.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-1"><Weight className="w-4 h-4" /> Andamento peso</h4>
+                <div className="flex items-end gap-1 h-24">
+                  {progressEntries.slice(0, 12).reverse().map((entry) => {
+                    if (!entry.weight) return null;
+                    const weights = progressEntries.filter(e => e.weight).map(e => e.weight!);
+                    const min = Math.min(...weights) * 0.95;
+                    const max = Math.max(...weights) * 1.05;
+                    const range = max - min || 1;
+                    const height = ((entry.weight - min) / range) * 100;
+                    return (
+                      <div key={entry.id} className="flex-1 flex flex-col items-center gap-1" title={`${entry.measurement_date}: ${entry.weight} kg`}>
+                        <div className="w-full bg-primary/70 rounded-t" style={{ height: `${Math.max(height, 5)}%` }} />
+                        <span className="text-[10px] text-muted-foreground">{entry.weight}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Entries list */}
+            {progressEntries.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nessun progresso registrato</p>
+            ) : (
+              <div className="space-y-3">
+                {progressEntries.map(entry => (
+                  <div key={entry.id} className="bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{formatDate(entry.measurement_date)}</span>
+                      {entry.weight && <span className="text-sm font-bold">{entry.weight} kg</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {entry.waist && <span className="flex items-center gap-0.5"><Ruler className="w-3 h-3" /> Vita: {entry.waist}cm</span>}
+                      {entry.hips && <span>Fianchi: {entry.hips}cm</span>}
+                      {entry.chest && <span>Petto: {entry.chest}cm</span>}
+                      {entry.arms && <span>Braccia: {entry.arms}cm</span>}
+                      {entry.thighs && <span>Cosce: {entry.thighs}cm</span>}
+                    </div>
+                    {entry.notes && <p className="text-xs text-muted-foreground mt-1">{entry.notes}</p>}
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ─── Progress Entry Form ─── */
+function ProgressForm({ clientId, activityId, onDone }: { clientId: string; activityId: string; onDone: () => void }) {
+  const [weight, setWeight] = useState('');
+  const [waist, setWaist] = useState('');
+  const [hips, setHips] = useState('');
+  const [chest, setChest] = useState('');
+  const [arms, setArms] = useState('');
+  const [thighs, setThighs] = useState('');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('progress_entries').insert({
+        client_id: clientId, activity_id: activityId,
+        weight: weight ? Number(weight) : null, waist: waist ? Number(waist) : null,
+        hips: hips ? Number(hips) : null, chest: chest ? Number(chest) : null,
+        arms: arms ? Number(arms) : null, thighs: thighs ? Number(thighs) : null,
+        notes: notes || null,
+      });
+      if (error) throw error;
+      toast.success('Misurazione salvata');
+      onDone();
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3 bg-card">
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label className="text-xs">Peso (kg)</Label><Input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder="es. 75" /></div>
+        <div><Label className="text-xs">Girovita (cm)</Label><Input type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="es. 82" /></div>
+        <div><Label className="text-xs">Fianchi (cm)</Label><Input type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="es. 95" /></div>
+        <div><Label className="text-xs">Petto (cm)</Label><Input type="number" value={chest} onChange={e => setChest(e.target.value)} placeholder="es. 100" /></div>
+        <div><Label className="text-xs">Braccia (cm)</Label><Input type="number" value={arms} onChange={e => setArms(e.target.value)} placeholder="es. 34" /></div>
+        <div><Label className="text-xs">Cosce (cm)</Label><Input type="number" value={thighs} onChange={e => setThighs(e.target.value)} placeholder="es. 55" /></div>
+      </div>
+      <div><Label className="text-xs">Note</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note sulla misurazione" /></div>
+      <Button variant="hero" size="sm" onClick={save} disabled={loading} className="w-full">
+        {loading ? 'Salvataggio...' : 'Salva misurazione'}
+      </Button>
+    </div>
   );
 }

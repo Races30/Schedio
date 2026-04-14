@@ -290,12 +290,19 @@ export default function PublicBooking() {
       {/* Hero */}
       <section className="py-16 px-4 bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto max-w-3xl text-center">
+          {/* Coach: photo + badge layout */}
+          {isCoach && activity.logo_url && (
+            <div className="mb-6">
+              <img src={activity.logo_url} alt={activity.owner_name} className="w-24 h-24 rounded-full object-cover mx-auto border-4 border-primary/20 shadow-lg" />
+            </div>
+          )}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
             <CategoryIcon className="w-4 h-4" /> {categoryLabel}
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold mb-4">{activity.name}</h1>
-          {activity.description && <p className="text-lg text-muted-foreground mb-4">{activity.description}</p>}
-          <p className="text-lg text-muted-foreground mb-6">{isSalone ? 'Prenota il tuo appuntamento in pochi secondi' : 'Prenota la tua sessione di allenamento'}</p>
+          <h1 className="text-3xl md:text-5xl font-bold mb-4">{isCoach ? activity.owner_name : activity.name}</h1>
+          {isCoach && <p className="text-xl text-foreground/80 font-medium mb-2">{activity.name}</p>}
+          {activity.description && <p className="text-lg text-muted-foreground mb-4 max-w-xl mx-auto">{activity.description}</p>}
+          <p className="text-lg text-muted-foreground mb-6">{isSalone ? 'Prenota il tuo appuntamento in pochi secondi' : 'Prenota la tua sessione di allenamento personalizzato'}</p>
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {activity.opening_hours.start} - {activity.opening_hours.end}</span>
             <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {openDayNames}</span>
@@ -310,13 +317,23 @@ export default function PublicBooking() {
       {/* About */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-3xl">
-          <h2 className="text-2xl font-bold mb-4">{isSalone ? 'Il nostro salone' : 'Il tuo trainer'}</h2>
-          <p className="text-muted-foreground leading-relaxed">
-            {isSalone
-              ? `Benvenuto da ${activity.name}! Il nostro team di professionisti è pronto ad accoglierti con servizi di qualità.`
-              : `Benvenuto! ${activity.owner_name} è pronto ad accompagnarti nel tuo percorso di allenamento personalizzato.`
-            }
-          </p>
+          <h2 className="text-2xl font-bold mb-4">{isSalone ? 'Il nostro salone' : 'Chi sono'}</h2>
+          {isCoach ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-4">
+                {activity.logo_url && <img src={activity.logo_url} alt={activity.owner_name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 hidden sm:block" />}
+                <div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {activity.description || `${activity.owner_name} è un personal trainer professionista pronto ad accompagnarti nel tuo percorso di fitness personalizzato.`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground leading-relaxed">
+              {`Benvenuto da ${activity.name}! Il nostro team di professionisti è pronto ad accoglierti con servizi di qualità.`}
+            </p>
+          )}
           {isSalone && staff.length > 0 && (
             <div className="mt-8">
               <h3 className="text-lg font-semibold mb-3">Il nostro team</h3>

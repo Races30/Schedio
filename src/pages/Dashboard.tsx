@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, AlertTriangle, Dumbbell } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, AlertTriangle, Dumbbell, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -79,11 +79,36 @@ export default function Dashboard() {
   const { data: packages = [] } = useQuery({
     queryKey: ['packages', activity?.id],
     queryFn: async () => {
-      const { data } = await supabase.from('packages').select('*').eq('activity_id', activity!.id).eq('status', 'active');
-      return (data || []) as PackageType[];
+      const { data } = await supabase.from('packages').select('*, client:clients(name)').eq('activity_id', activity!.id).eq('status', 'active');
+      return (data || []) as (PackageType & { client?: { name: string } })[];
     },
     enabled: !!activity && isCoach,
   });
+
+  // Inactive clients (no appointment in last 14 days) — coach only
+  const { data: allClients = [] } = useQuery({
+    queryKey: ['clients', 'all', activity?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('clients').select('*').eq('activity_id', activity!.id);
+      return (data || []) as Client[];
+    },
+    enabled: !!activity && isCoach,
+  });
+
+  const { data: recentApptClientIds = [] } = useQuery({
+    queryKey: ['appointments', 'recent-clients', activity?.id],
+    queryFn: async () => {
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+      const { data } = await supabase.from('appointments').select('client_id').eq('activity_id', activity!.id).gte('date', cutoff.toISOString().split('T')[0]).neq('status', 'cancelled');
+      return [...new Set((data || []).map(a => a.client_id).filter(Boolean))] as string[];
+    },
+    enabled: !!activity && isCoach,
+  });
+
+  const inactiveClients = useMemo(() => {
+    if (!isCoach) return [];
+    return allClients.filter(c => !recentApptClientIds.includes(c.id));
+  }, [allClients, recentApptClientIds, isCoach]);
 
   const bookableEmployees = useMemo(() => filterBookableEmployees(employeesRaw, activity), [employeesRaw, activity]);
 
@@ -102,6 +127,8 @@ export default function Dashboard() {
 
   const lowSessionPackages = packages.filter(p => (p.total_sessions - p.used_sessions) <= 2 && (p.total_sessions - p.used_sessions) > 0);
 
+  const totalRemainingSessions = packages.reduce((sum, p) => sum + (p.total_sessions - p.used_sessions), 0);
+
   const stats = isSalone ? [
     { icon: Calendar, label: 'Oggi', value: todayFiltered.length, color: 'text-primary' },
     { icon: TrendingUp, label: 'Questa settimana', value: weekAppts.length, color: 'text-success' },
@@ -109,9 +136,9 @@ export default function Dashboard() {
     { icon: UserPlus, label: 'Operatori attivi', value: bookableEmployees.length, color: 'text-warning' },
   ] : [
     { icon: Calendar, label: 'Sessioni oggi', value: todayAppts.length, color: 'text-primary' },
-    { icon: TrendingUp, label: 'Questa settimana', value: weekAppts.length, color: 'text-success' },
+    { icon: Package, label: 'Pacchetti attivi', value: packages.length, color: 'text-success' },
     { icon: Users, label: 'Clienti totali', value: totalClients, color: 'text-accent' },
-    { icon: Package, label: 'Pacchetti attivi', value: packages.length, color: 'text-warning' },
+    { icon: TrendingUp, label: 'Sedute rimanenti', value: totalRemainingSessions, color: 'text-warning' },
   ];
 
   const statusLabel = (s: string) => {
@@ -142,20 +169,26 @@ export default function Dashboard() {
       </div>
 
       {/* Coach alerts */}
-      {isCoach && (expiringPackages.length > 0 || lowSessionPackages.length > 0) && (
+      {isCoach && (expiringPackages.length > 0 || lowSessionPackages.length > 0 || inactiveClients.length > 0) && (
         <div className="mb-6 space-y-2">
           {expiringPackages.map(p => (
-            <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+            <div key={`exp-${p.id}`} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
               <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
-              <span>Pacchetto <strong>{p.name}</strong> in scadenza il {p.end_date}</span>
+              <span>Pacchetto <strong>{p.name}</strong>{(p as any).client?.name ? ` di ${(p as any).client.name}` : ''} in scadenza il {p.end_date}</span>
             </div>
           ))}
           {lowSessionPackages.map(p => (
-            <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+            <div key={`low-${p.id}`} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
               <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
-              <span>Pacchetto <strong>{p.name}</strong>: solo {p.total_sessions - p.used_sessions} sedute rimanenti</span>
+              <span>Pacchetto <strong>{p.name}</strong>{(p as any).client?.name ? ` di ${(p as any).client.name}` : ''}: solo {p.total_sessions - p.used_sessions} sedute rimanenti</span>
             </div>
           ))}
+          {inactiveClients.length > 0 && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border text-sm">
+              <UserX className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span><strong>{inactiveClients.length}</strong> client{inactiveClients.length > 1 ? 'i' : 'e'} inattiv{inactiveClients.length > 1 ? 'i' : 'o'} (nessuna sessione negli ultimi 14 giorni): {inactiveClients.slice(0, 3).map(c => c.name).join(', ')}{inactiveClients.length > 3 ? '...' : ''}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -186,7 +219,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{a.client?.name || a.client_name || 'Cliente'}</div>
                       <div className="text-xs text-muted-foreground">
-                        {a.service?.name || 'Appuntamento'} • {formatTime(a.start_time)} - {formatTime(a.end_time)}
+                        {a.service?.name || (isCoach ? 'Sessione' : 'Appuntamento')} • {formatTime(a.start_time)} - {formatTime(a.end_time)}
                         {emp && <span> • {emp.name}</span>}
                       </div>
                     </div>
@@ -239,6 +272,7 @@ export default function Dashboard() {
                     <div className="font-medium text-sm truncate">{c.name}</div>
                     <div className="text-xs text-muted-foreground">{c.phone || c.email || ''}</div>
                   </div>
+                  {isCoach && c.objective && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{c.objective}</span>}
                 </div>
               ))}
             </div>
