@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const [hostWorksInSalon, setHostWorksInSalon] = useState(true);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [maxAdvanceDays, setMaxAdvanceDays] = useState(60);
+  const [minNoticeHours, setMinNoticeHours] = useState(2);
 
   useEffect(() => {
     if (activity) {
