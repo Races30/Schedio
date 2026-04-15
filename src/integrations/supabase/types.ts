@@ -96,6 +96,7 @@ export type Database = {
           end_time: string
           id: string
           notes: string | null
+          package_id: string | null
           service_id: string | null
           start_time: string
           status: string
@@ -116,6 +117,7 @@ export type Database = {
           end_time: string
           id?: string
           notes?: string | null
+          package_id?: string | null
           service_id?: string | null
           start_time: string
           status?: string
@@ -136,6 +138,7 @@ export type Database = {
           end_time?: string
           id?: string
           notes?: string | null
+          package_id?: string | null
           service_id?: string | null
           start_time?: string
           status?: string
@@ -161,6 +164,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
             referencedColumns: ["id"]
           },
           {
