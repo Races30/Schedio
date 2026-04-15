@@ -324,6 +324,24 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Booking limits */}
+        <section className="glass-card p-6">
+          <h2 className="text-lg font-semibold mb-4">Limiti prenotazione</h2>
+          <p className="text-sm text-muted-foreground mb-4">Configura fino a quando i clienti possono prenotare e con quanto anticipo minimo.</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Prenotazione massima in anticipo (giorni)</Label>
+              <Input type="number" value={maxAdvanceDays} onChange={(e) => setMaxAdvanceDays(Number(e.target.value))} min={7} max={365} step={1} />
+              <p className="text-xs text-muted-foreground mt-1">I clienti potranno prenotare fino a {maxAdvanceDays} giorni in avanti</p>
+            </div>
+            <div>
+              <Label>Preavviso minimo (ore)</Label>
+              <Input type="number" value={minNoticeHours} onChange={(e) => setMinNoticeHours(Number(e.target.value))} min={0} max={72} step={1} />
+              <p className="text-xs text-muted-foreground mt-1">I clienti devono prenotare almeno {minNoticeHours} ore prima</p>
+            </div>
+          </div>
+        </section>
+
         <Button variant="hero" onClick={saveSettings} disabled={loading} className="w-full">
           <Save className="w-4 h-4" /> {loading ? 'Salvataggio...' : 'Salva impostazioni'}
         </Button>
