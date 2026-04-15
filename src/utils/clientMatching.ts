@@ -10,10 +10,6 @@ interface ClientMatchInput {
   frequency?: string | null;
 }
 
-/**
- * Find an existing client by email > phone > name, or create a new one.
- * Returns the client id.
- */
 export async function findOrCreateClient(input: ClientMatchInput): Promise<string> {
   const { activityId, name, phone, email } = input;
 
@@ -27,13 +23,10 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
       .limit(1)
       .maybeSingle();
     if (data) {
-      // Update missing fields
-      const updates: Record<string, string> = {};
-      if (phone) updates.phone = phone;
-      if (name) updates.name = name;
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('clients').update(updates).eq('id', data.id);
-      }
+      await supabase.from('clients').update({
+        ...(phone ? { phone } : {}),
+        ...(name ? { name } : {}),
+      }).eq('id', data.id);
       return data.id;
     }
   }
@@ -48,12 +41,10 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
       .limit(1)
       .maybeSingle();
     if (data) {
-      const updates: Record<string, string> = {};
-      if (email) updates.email = email;
-      if (name) updates.name = name;
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('clients').update(updates).eq('id', data.id);
-      }
+      await supabase.from('clients').update({
+        ...(email ? { email } : {}),
+        ...(name ? { name } : {}),
+      }).eq('id', data.id);
       return data.id;
     }
   }
@@ -68,30 +59,26 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
       .limit(1)
       .maybeSingle();
     if (data) {
-      const updates: Record<string, string> = {};
-      if (email) updates.email = email;
-      if (phone) updates.phone = phone;
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('clients').update(updates).eq('id', data.id);
-      }
+      await supabase.from('clients').update({
+        ...(email ? { email } : {}),
+        ...(phone ? { phone } : {}),
+      }).eq('id', data.id);
       return data.id;
     }
   }
 
   // No match → create new client
-  const insertPayload: Record<string, unknown> = {
-    activity_id: activityId,
-    name: name.trim(),
-    phone: phone || null,
-    email: email || null,
-  };
-  if (input.objective) insertPayload.objective = input.objective;
-  if (input.level) insertPayload.level = input.level;
-  if (input.frequency) insertPayload.frequency = input.frequency;
-
   const { data: newClient, error } = await supabase
     .from('clients')
-    .insert(insertPayload)
+    .insert({
+      activity_id: activityId,
+      name: name.trim(),
+      phone: phone || null,
+      email: email || null,
+      objective: input.objective || null,
+      level: input.level || null,
+      frequency: input.frequency || null,
+    })
     .select('id')
     .single();
 
@@ -99,10 +86,6 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
   return newClient.id;
 }
 
-/**
- * Find the most recent active package for a client.
- * Returns { id, total_sessions, used_sessions } or null.
- */
 export async function findActivePackage(clientId: string, activityId: string) {
   const { data } = await supabase
     .from('packages')
@@ -116,12 +99,7 @@ export async function findActivePackage(clientId: string, activityId: string) {
   return data;
 }
 
-/**
- * Decrement a session from a package when appointment is completed.
- * Marks package as 'completed' if sessions are exhausted.
- */
 export async function decrementPackageSession(packageId: string) {
-  // Fetch current state
   const { data: pkg } = await supabase
     .from('packages')
     .select('used_sessions, total_sessions')
