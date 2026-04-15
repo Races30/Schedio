@@ -74,6 +74,8 @@ export default function SettingsPage() {
       setBufferMinutes(activity.buffer_minutes);
       setHostWorksInSalon(activity.host_works_in_salon !== false);
       setLogoUrl(activity.logo_url || null);
+      setMaxAdvanceDays((activity as any).max_advance_booking_days || 60);
+      setMinNoticeHours((activity as any).min_booking_notice_hours || 2);
       // Extract specialization from description for coach
       if (activity.category === 'coach' && activity.description) {
         const match = SPECIALIZATIONS.find(s => activity.description?.toLowerCase().includes(s.toLowerCase()));
