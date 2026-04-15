@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { findActivePackage, decrementPackageSession } from '@/utils/clientMatching';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -423,6 +424,17 @@ function AppointmentDialog({
     }
     setLoading(true);
     try {
+      const isCoach = activity.category === 'coach';
+
+      // Auto-link package for coach on new appointments
+      let packageId: string | null = null;
+      if (isCoach && !appointment && clientId) {
+        const activePkg = await findActivePackage(clientId, activity.id);
+        if (activePkg && activePkg.used_sessions < activePkg.total_sessions) {
+          packageId = activePkg.id;
+        }
+      }
+
       const payload = {
         activity_id: activity.id,
         client_id: clientId || null,
@@ -437,11 +449,27 @@ function AppointmentDialog({
         notes: notes || null,
         client_name: clientName || null,
         color: selectedService?.color || null,
+        ...(packageId ? { package_id: packageId } : {}),
       };
 
       if (appointment) {
         const { error } = await supabase.from('appointments').update(payload).eq('id', appointment.id);
         if (error) throw error;
+
+        // Handle package session decrement when status changes to completed
+        const previousStatus = appointment.status;
+        if (isCoach && status === 'completed' && previousStatus !== 'completed') {
+          // Check if appointment has a linked package
+          const { data: apptData } = await supabase
+            .from('appointments')
+            .select('package_id')
+            .eq('id', appointment.id)
+            .single();
+          if (apptData?.package_id) {
+            await decrementPackageSession(apptData.package_id);
+          }
+        }
+
         toast.success('Appuntamento aggiornato');
       } else {
         const { error } = await supabase.from('appointments').insert(payload);
@@ -449,6 +477,7 @@ function AppointmentDialog({
         toast.success('Appuntamento creato');
       }
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['packages'] });
       onClose();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Errore';

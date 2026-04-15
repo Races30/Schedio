@@ -1,0 +1,1 @@
+ALTER TABLE public.appointments ADD COLUMN package_id uuid REFERENCES public.packages(id) ON DELETE SET NULL DEFAULT NULL;
