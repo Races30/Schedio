@@ -195,6 +195,24 @@ export default function PublicBooking() {
         if (slotConflictsForEmployee(selectedTime, assignedEmployeeId, existingAppts)) { toast.error('Orario non più disponibile.'); setLoading(false); return; }
       }
 
+      // Smart client matching: find or create
+      const clientId = await findOrCreateClient({
+        activityId: activity.id,
+        name: clientName,
+        phone: clientPhone || null,
+        email: clientEmail || null,
+        ...(isCoach && clientObjective ? { objective: clientObjective } : {}),
+      });
+
+      // Auto-link package for coach
+      let packageId: string | null = null;
+      if (isCoach && clientId) {
+        const activePkg = await findActivePackage(clientId, activity.id);
+        if (activePkg && activePkg.used_sessions < activePkg.total_sessions) {
+          packageId = activePkg.id;
+        }
+      }
+
       const { error } = await supabase.from('appointments').insert({
         activity_id: activity.id,
         date: selectedDate,
@@ -203,6 +221,7 @@ export default function PublicBooking() {
         duration_minutes: duration,
         buffer_time_minutes: bufferMinutes,
         status: 'pending',
+        client_id: clientId,
         client_name: clientName,
         client_phone: clientPhone || null,
         client_email: clientEmail || null,
@@ -210,6 +229,7 @@ export default function PublicBooking() {
         service_id: selectedService?.id || null,
         employee_id: assignedEmployeeId,
         color: selectedService?.color || null,
+        package_id: packageId,
       });
       if (error) throw error;
       setBooked(true);
