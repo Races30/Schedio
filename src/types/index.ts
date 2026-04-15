@@ -82,6 +82,7 @@ export interface Appointment {
   end_time: string;
   duration_minutes: number;
   buffer_time_minutes?: number;
+  package_id?: string | null;
   status: AppointmentStatus;
   color: string | null;
   notes: string | null;
