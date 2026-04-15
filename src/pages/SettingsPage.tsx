@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const [hostWorksInSalon, setHostWorksInSalon] = useState(true);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [maxAdvanceDays, setMaxAdvanceDays] = useState(60);
+  const [minNoticeHours, setMinNoticeHours] = useState(2);
 
   useEffect(() => {
     if (activity) {
@@ -72,6 +74,8 @@ export default function SettingsPage() {
       setBufferMinutes(activity.buffer_minutes);
       setHostWorksInSalon(activity.host_works_in_salon !== false);
       setLogoUrl(activity.logo_url || null);
+      setMaxAdvanceDays((activity as any).max_advance_booking_days || 60);
+      setMinNoticeHours((activity as any).min_booking_notice_hours || 2);
       // Extract specialization from description for coach
       if (activity.category === 'coach' && activity.description) {
         const match = SPECIALIZATIONS.find(s => activity.description?.toLowerCase().includes(s.toLowerCase()));
@@ -150,6 +154,8 @@ export default function SettingsPage() {
           default_appointment_duration_minutes: defaultDuration,
           buffer_minutes: bufferMinutes,
           host_works_in_salon: isSalone ? hostWorksInSalon : false,
+          max_advance_booking_days: maxAdvanceDays,
+          min_booking_notice_hours: minNoticeHours,
         })
         .eq('id', activity.id);
       if (error) throw error;
@@ -314,6 +320,24 @@ export default function SettingsPage() {
                 <input type="color" value={themeColor} onChange={(e) => setThemeColor(e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0" />
                 <span className="text-sm text-muted-foreground">{themeColor}</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Booking limits */}
+        <section className="glass-card p-6">
+          <h2 className="text-lg font-semibold mb-4">Limiti prenotazione</h2>
+          <p className="text-sm text-muted-foreground mb-4">Configura fino a quando i clienti possono prenotare e con quanto anticipo minimo.</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Prenotazione massima in anticipo (giorni)</Label>
+              <Input type="number" value={maxAdvanceDays} onChange={(e) => setMaxAdvanceDays(Number(e.target.value))} min={7} max={365} step={1} />
+              <p className="text-xs text-muted-foreground mt-1">I clienti potranno prenotare fino a {maxAdvanceDays} giorni in avanti</p>
+            </div>
+            <div>
+              <Label>Preavviso minimo (ore)</Label>
+              <Input type="number" value={minNoticeHours} onChange={(e) => setMinNoticeHours(Number(e.target.value))} min={0} max={72} step={1} />
+              <p className="text-xs text-muted-foreground mt-1">I clienti devono prenotare almeno {minNoticeHours} ore prima</p>
             </div>
           </div>
         </section>

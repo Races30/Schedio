@@ -20,6 +20,8 @@ export interface Activity {
   buffer_minutes: number;
   created_at: string;
   updated_at: string;
+  max_advance_booking_days?: number;
+  min_booking_notice_hours?: number;
 }
 
 export interface Client {

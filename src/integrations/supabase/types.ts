@@ -26,6 +26,8 @@ export type Database = {
           host_works_in_salon: boolean
           id: string
           logo_url: string | null
+          max_advance_booking_days: number
+          min_booking_notice_hours: number
           name: string
           opening_days: number[]
           opening_hours: Json
@@ -47,6 +49,8 @@ export type Database = {
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
+          max_advance_booking_days?: number
+          min_booking_notice_hours?: number
           name: string
           opening_days?: number[]
           opening_hours?: Json
@@ -68,6 +72,8 @@ export type Database = {
           host_works_in_salon?: boolean
           id?: string
           logo_url?: string | null
+          max_advance_booking_days?: number
+          min_booking_notice_hours?: number
           name?: string
           opening_days?: number[]
           opening_hours?: Json

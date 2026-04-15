@@ -4,15 +4,17 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, Service, Appointment, Employee, EmployeeService } from '@/types';
 import { findOrCreateClient, findActivePackage } from '@/utils/clientMatching';
+import { generateIcsFile } from '@/utils/icsGenerator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { format, addDays, parseISO } from 'date-fns';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { format, addDays, parseISO, isBefore, startOfDay, addHours } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { generateTimeSlots, addMinutesToTime, formatTime, getDayName } from '@/utils/dateHelpers';
 import { filterBookableEmployees } from '@/utils/salonEmployees';
 import { toast } from 'sonner';
-import { Calendar, Clock, CheckCircle2, ChevronLeft, Shield, Zap, Award, ChevronDown, Scissors, User, Dumbbell } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, ChevronLeft, Shield, Zap, Award, ChevronDown, Scissors, User, Dumbbell, CalendarPlus } from 'lucide-react';
 
 const SLOT_INTERVAL = 15;
 
@@ -46,6 +48,9 @@ export default function PublicBooking() {
 
   const isSalone = activity?.category === 'salone';
   const isCoach = activity?.category === 'coach';
+
+  const maxAdvanceDays = activity?.max_advance_booking_days || 60;
+  const minNoticeHours = activity?.min_booking_notice_hours || 2;
 
   const { data: services = [] } = useQuery({
     queryKey: ['public-services', activity?.id],
@@ -86,7 +91,7 @@ export default function PublicBooking() {
   }, [selectedService, staff, employeeServices]);
 
   useEffect(() => {
-    if (step === 1 && services.length === 0 && activity) setStep(isSalone ? 2 : (isSalone ? 3 : 2));
+    if (step === 1 && services.length === 0 && activity) setStep(isSalone ? 2 : 2);
   }, [step, services.length, activity, isSalone]);
 
   const { data: existingAppts = [] } = useQuery({
@@ -110,16 +115,25 @@ export default function PublicBooking() {
   const duration = selectedService?.duration_minutes || activity?.default_appointment_duration_minutes || 30;
   const bufferMinutes = activity?.buffer_minutes || 0;
 
-  const availableDates = useMemo(() => {
+  // Multi-month calendar: compute available date range
+  const today = useMemo(() => new Date(), []);
+  const earliestDate = useMemo(() => {
+    const minDate = addHours(new Date(), minNoticeHours);
+    const tomorrow = addDays(startOfDay(today), 1);
+    return isBefore(minDate, tomorrow) ? tomorrow : startOfDay(minDate);
+  }, [today, minNoticeHours]);
+  const latestDate = useMemo(() => addDays(today, maxAdvanceDays), [today, maxAdvanceDays]);
+
+  // Disabled days for calendar: closed days + out of range
+  const disabledDays = useMemo(() => {
     if (!activity) return [];
-    const dates: Date[] = [];
-    const today = new Date();
-    for (let i = 1; i <= 14; i++) {
-      const d = addDays(today, i);
-      if (activity.opening_days.includes(d.getDay())) dates.push(d);
-    }
-    return dates;
-  }, [activity]);
+    const closedWeekdays = [0, 1, 2, 3, 4, 5, 6].filter(d => !activity.opening_days.includes(d));
+    const matchers: Array<{ dayOfWeek: number[] } | { before: Date } | { after: Date }> = [];
+    if (closedWeekdays.length > 0) matchers.push({ dayOfWeek: closedWeekdays });
+    matchers.push({ before: earliestDate });
+    matchers.push({ after: latestDate });
+    return matchers;
+  }, [activity, earliestDate, latestDate]);
 
   const slotConflictsForEmployee = (slot: string, empId: string, appts: Pick<Appointment, 'start_time' | 'end_time' | 'employee_id' | 'buffer_time_minutes'>[]) => {
     const slotEnd = addMinutesToTime(slot, duration);
@@ -135,9 +149,23 @@ export default function PublicBooking() {
   const availableSlots = useMemo(() => {
     if (!activity || !selectedDate) return [];
     const allSlots = generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, SLOT_INTERVAL);
+
+    // Filter slots that are too soon (min notice)
+    const now = new Date();
+    const selectedDateObj = parseISO(selectedDate);
+    const isToday = startOfDay(now).getTime() === startOfDay(selectedDateObj).getTime();
+
     return allSlots.filter((slot) => {
       const slotEnd = addMinutesToTime(slot, duration + bufferMinutes);
       if (slotEnd > activity.opening_hours.end) return false;
+
+      // Min notice filter
+      if (isToday) {
+        const [h, m] = slot.split(':').map(Number);
+        const slotDate = new Date(selectedDateObj);
+        slotDate.setHours(h, m, 0, 0);
+        if (isBefore(slotDate, addHours(now, minNoticeHours))) return false;
+      }
 
       if (isCoach) {
         return !existingAppts.some((a) => {
@@ -159,7 +187,7 @@ export default function PublicBooking() {
       }
       return true;
     });
-  }, [activity, selectedDate, existingAppts, duration, bufferMinutes, noPreference, compatibleEmployees, selectedEmployee, isCoach]);
+  }, [activity, selectedDate, existingAppts, duration, bufferMinutes, noPreference, compatibleEmployees, selectedEmployee, isCoach, minNoticeHours]);
 
   const scrollToBooking = () => {
     setStep(1);
@@ -195,7 +223,7 @@ export default function PublicBooking() {
         if (slotConflictsForEmployee(selectedTime, assignedEmployeeId, existingAppts)) { toast.error('Orario non più disponibile.'); setLoading(false); return; }
       }
 
-      // Smart client matching: find or create
+      // Smart client matching
       const clientId = await findOrCreateClient({
         activityId: activity.id,
         name: clientName,
@@ -240,6 +268,19 @@ export default function PublicBooking() {
     }
   };
 
+  const handleDownloadIcs = () => {
+    if (!activity || !selectedDate || !selectedTime) return;
+    const serviceName = selectedService?.name || (isSalone ? 'Appuntamento' : 'Sessione');
+    generateIcsFile({
+      title: `${serviceName} - ${activity.name}`,
+      description: `Prenotazione presso ${activity.name}${notes ? `\nNote: ${notes}` : ''}`,
+      startDate: selectedDate,
+      startTime: selectedTime,
+      durationMinutes: duration,
+      location: activity.name,
+    });
+  };
+
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!activity) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-center"><h1 className="text-2xl font-bold mb-2">Pagina non trovata</h1><p className="text-muted-foreground">Questa attività non esiste.</p></div></div>;
 
@@ -250,12 +291,18 @@ export default function PublicBooking() {
           <CheckCircle2 className="w-16 h-16 text-success mx-auto mb-4" />
           <h1 className="text-2xl font-bold mb-2">Prenotazione inviata!</h1>
           <p className="text-muted-foreground mb-4">La tua richiesta è stata inviata a {activity.name}.</p>
-          <div className="bg-muted/50 rounded-lg p-4 text-left text-sm space-y-1">
+          <div className="bg-muted/50 rounded-lg p-4 text-left text-sm space-y-1 mb-6">
+            <div><strong>{isSalone ? 'Attività' : 'Coach'}:</strong> {activity.name}</div>
             <div><strong>Data:</strong> {format(parseISO(selectedDate), 'EEEE dd MMMM yyyy', { locale: it })}</div>
             <div><strong>Orario:</strong> {formatTime(selectedTime)} - {addMinutesToTime(selectedTime, duration)}</div>
+            <div><strong>Durata:</strong> {duration} minuti</div>
             {selectedService && <div><strong>{isSalone ? 'Servizio' : 'Sessione'}:</strong> {selectedService.name}</div>}
             {selectedEmployee && <div><strong>Con:</strong> {selectedEmployee.name} {selectedEmployee.surname}</div>}
           </div>
+          <Button variant="hero" className="w-full" onClick={handleDownloadIcs}>
+            <CalendarPlus className="w-5 h-5" /> Aggiungi al tuo calendario
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">Compatibile con Google Calendar, Apple Calendar, Samsung Calendar e altri</p>
         </div>
       </div>
     );
@@ -295,6 +342,12 @@ export default function PublicBooking() {
     }
   };
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    setSelectedDate(format(date, 'yyyy-MM-dd'));
+    setStep(stepForTime);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
@@ -310,7 +363,6 @@ export default function PublicBooking() {
       {/* Hero */}
       <section className="py-16 px-4 bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto max-w-3xl text-center">
-          {/* Coach: photo + badge layout */}
           {isCoach && activity.logo_url && (
             <div className="mb-6">
               <img src={activity.logo_url} alt={activity.owner_name} className="w-24 h-24 rounded-full object-cover mx-auto border-4 border-primary/20 shadow-lg" />
@@ -461,23 +513,23 @@ export default function PublicBooking() {
               </div>
             )}
 
-            {/* Date step */}
+            {/* Date step — multi-month calendar */}
             {step === stepForDate && (
               <div>
                 <button onClick={() => goBackFromStep(step)} className="text-sm text-primary hover:underline mb-4 flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> Indietro</button>
                 <h3 className="font-semibold mb-4 flex items-center gap-2"><Calendar className="w-5 h-5" /> Scegli la data</h3>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {availableDates.map(d => {
-                    const dateStr = format(d, 'yyyy-MM-dd');
-                    return (
-                      <button key={dateStr} onClick={() => { setSelectedDate(dateStr); setStep(stepForTime); }}
-                        className={`p-3 rounded-lg border text-center transition-colors ${selectedDate === dateStr ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
-                        <div className="text-xs text-muted-foreground">{format(d, 'EEE', { locale: it })}</div>
-                        <div className="font-semibold">{format(d, 'd')}</div>
-                        <div className="text-xs text-muted-foreground">{format(d, 'MMM', { locale: it })}</div>
-                      </button>
-                    );
-                  })}
+                <p className="text-xs text-muted-foreground mb-3">Puoi prenotare fino a {maxAdvanceDays} giorni in anticipo</p>
+                <div className="flex justify-center">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate ? parseISO(selectedDate) : undefined}
+                    onSelect={handleDateSelect}
+                    disabled={disabledDays}
+                    fromMonth={earliestDate}
+                    toMonth={latestDate}
+                    locale={it}
+                    className="p-3 pointer-events-auto rounded-lg border border-border"
+                  />
                 </div>
               </div>
             )}
@@ -489,7 +541,10 @@ export default function PublicBooking() {
                 <h3 className="font-semibold mb-4 flex items-center gap-2"><Clock className="w-5 h-5" /> Scegli l'orario</h3>
                 <p className="text-sm text-muted-foreground mb-4">{format(parseISO(selectedDate), 'EEEE dd MMMM', { locale: it })}</p>
                 {availableSlots.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">Nessun orario disponibile</p>
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground mb-3">Nessun orario disponibile per questa data</p>
+                    <Button variant="outline" size="sm" onClick={() => setStep(stepForDate)}>Scegli un'altra data</Button>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                     {availableSlots.map(t => (
