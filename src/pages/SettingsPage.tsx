@@ -154,6 +154,8 @@ export default function SettingsPage() {
           default_appointment_duration_minutes: defaultDuration,
           buffer_minutes: bufferMinutes,
           host_works_in_salon: isSalone ? hostWorksInSalon : false,
+          max_advance_booking_days: maxAdvanceDays,
+          min_booking_notice_hours: minNoticeHours,
         })
         .eq('id', activity.id);
       if (error) throw error;
