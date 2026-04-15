@@ -85,8 +85,8 @@ export default function PublicBooking() {
   }, [selectedService, staff, employeeServices]);
 
   useEffect(() => {
-    if (step === 1 && services.length === 0 && activity) setStep(isSalone ? 2 : stepForDate);
-  }, [step, services.length, activity, isSalone, stepForDate]);
+    if (step === 1 && services.length === 0 && activity) setStep(isSalone ? 2 : (isSalone ? 3 : 2));
+  }, [step, services.length, activity, isSalone]);
 
   const { data: existingAppts = [] } = useQuery({
     queryKey: ['public-appointments', activity?.id, selectedDate, selectedEmployee?.id, noPreference],
