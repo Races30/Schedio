@@ -25,6 +25,8 @@ export interface Activity {
 }
 
 export interface Client {
+  status: string;
+  status_reason: string;
   id: string;
   activity_id: string;
   name: string;

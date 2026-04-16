@@ -258,6 +258,8 @@ export type Database = {
           objective: string | null
           phone: string | null
           preferences: Json | null
+          status: string | null
+          status_reason: string | null
           updated_at: string
         }
         Insert: {
@@ -272,6 +274,8 @@ export type Database = {
           objective?: string | null
           phone?: string | null
           preferences?: Json | null
+          status?: string | null
+          status_reason?: string | null
           updated_at?: string
         }
         Update: {
@@ -286,6 +290,8 @@ export type Database = {
           objective?: string | null
           phone?: string | null
           preferences?: Json | null
+          status?: string | null
+          status_reason?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -380,6 +386,63 @@ export type Database = {
             columns: ["activity_id"]
             isOneToOne: false
             referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          activity_id: string
+          channel: string
+          client_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          scheduled_for: string | null
+          sent_at: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          activity_id: string
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          title: string
+          type?: string
+        }
+        Update: {
+          activity_id?: string
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -562,7 +625,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_retention_alerts: {
+        Args: {
+          target_activity_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

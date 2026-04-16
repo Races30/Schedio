@@ -188,8 +188,8 @@ function PackageDialog({ open, onClose, pkg, activityId, clients }: {
       }
       queryClient.invalidateQueries({ queryKey: ['packages'] });
       onClose();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -204,8 +204,8 @@ function PackageDialog({ open, onClose, pkg, activityId, clients }: {
       toast.success('Pacchetto eliminato');
       queryClient.invalidateQueries({ queryKey: ['packages'] });
       onClose();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

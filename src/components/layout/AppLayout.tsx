@@ -3,6 +3,7 @@ import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { Calendar, Users, LayoutDashboard, Settings, ExternalLink, LogOut, Menu, X, Scissors, Contact, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
+import { NotificationBell } from './NotificationBell';
 
 export default function AppLayout() {
   const { user, activity, loading, signOut } = useAuth();
@@ -32,9 +33,12 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-background flex">
       <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col">
-        <div className="p-4 border-b border-border">
-          <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
-          <div className="text-xs text-muted-foreground mt-1 truncate">{activity.name}</div>
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
+            <div className="text-xs text-muted-foreground mt-1 truncate">{activity.name}</div>
+          </div>
+          <NotificationBell />
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
@@ -60,9 +64,12 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
           <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+          </div>
         </header>
 
         {mobileOpen && (

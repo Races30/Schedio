@@ -159,6 +159,7 @@ export default function CalendarPage() {
       confirmed: 'border-l-4 border-l-success',
       pending: 'border-l-4 border-l-warning',
       cancelled: 'border-l-4 border-l-destructive opacity-50',
+      'no-show': 'border-l-4 border-l-destructive',
       completed: 'border-l-4 border-l-muted-foreground',
     };
     return map[status] || '';
@@ -225,6 +226,7 @@ export default function CalendarPage() {
               <SelectItem value="confirmed">Confermato</SelectItem>
               <SelectItem value="pending">In attesa</SelectItem>
               <SelectItem value="cancelled">Cancellato</SelectItem>
+              <SelectItem value="no-show">No Show</SelectItem>
               <SelectItem value="completed">Completato</SelectItem>
             </SelectContent>
           </Select>
@@ -570,6 +572,7 @@ function AppointmentDialog({
                 <SelectItem value="confirmed">Confermato</SelectItem>
                 <SelectItem value="pending">In attesa</SelectItem>
                 <SelectItem value="cancelled">Cancellato</SelectItem>
+                <SelectItem value="no-show">No Show</SelectItem>
                 <SelectItem value="completed">Completato</SelectItem>
               </SelectContent>
             </Select>

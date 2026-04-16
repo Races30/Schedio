@@ -111,8 +111,8 @@ export default function Register() {
       await refreshActivity(authUserId);
       toast.success('Account creato con successo!');
       navigate('/dashboard', { replace: true });
-    } catch (err: any) {
-      toast.error(err.message || 'Errore durante la registrazione');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante la registrazione');
     } finally {
       setLoading(false);
     }

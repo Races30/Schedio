@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,6 +10,7 @@ import { formatTime, formatDateRelative } from '@/utils/dateHelpers';
 import { Appointment, Client, Employee, Package as PackageType } from '@/types';
 import { motion } from 'framer-motion';
 import { filterBookableEmployees, employeeDisplayLabel } from '@/utils/salonEmployees';
+import { RetentionAlerts } from '@/components/dashboard/RetentionAlerts';
 
 export default function Dashboard() {
   const { activity } = useAuth();
@@ -112,9 +113,9 @@ export default function Dashboard() {
 
   const bookableEmployees = useMemo(() => filterBookableEmployees(employeesRaw, activity), [employeesRaw, activity]);
 
-  const filterByEmployee = (list: Appointment[]) => filterEmployeeId === 'all' ? list : list.filter((a) => a.employee_id === filterEmployeeId);
-  const todayFiltered = useMemo(() => filterByEmployee(todayAppts), [todayAppts, filterEmployeeId]);
-  const upcomingFiltered = useMemo(() => filterByEmployee(upcomingAppts), [upcomingAppts, filterEmployeeId]);
+  const filterByEmployee = useCallback((list: Appointment[]) => filterEmployeeId === 'all' ? list : list.filter((a) => a.employee_id === filterEmployeeId), [filterEmployeeId]);
+  const todayFiltered = useMemo(() => filterByEmployee(todayAppts), [todayAppts, filterByEmployee]);
+  const upcomingFiltered = useMemo(() => filterByEmployee(upcomingAppts), [upcomingAppts, filterByEmployee]);
   const getEmp = (id: string | null) => employeesRaw.find((e) => e.id === id);
 
   if (!activity) return null;
@@ -142,7 +143,7 @@ export default function Dashboard() {
   ];
 
   const statusLabel = (s: string) => {
-    const map: Record<string, string> = { confirmed: 'Confermato', pending: 'In attesa', cancelled: 'Cancellato', completed: 'Completato' };
+    const map: Record<string, string> = { confirmed: 'Confermato', pending: 'In attesa', cancelled: 'Cancellato', completed: 'Completato', 'no-show': 'No Show' };
     return map[s] || s;
   };
 
@@ -168,29 +169,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Coach alerts */}
-      {isCoach && (expiringPackages.length > 0 || lowSessionPackages.length > 0 || inactiveClients.length > 0) && (
-        <div className="mb-6 space-y-2">
-          {expiringPackages.map(p => (
-            <div key={`exp-${p.id}`} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
-              <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
-              <span>Pacchetto <strong>{p.name}</strong>{(p as any).client?.name ? ` di ${(p as any).client.name}` : ''} in scadenza il {p.end_date}</span>
-            </div>
-          ))}
-          {lowSessionPackages.map(p => (
-            <div key={`low-${p.id}`} className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
-              <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
-              <span>Pacchetto <strong>{p.name}</strong>{(p as any).client?.name ? ` di ${(p as any).client.name}` : ''}: solo {p.total_sessions - p.used_sessions} sedute rimanenti</span>
-            </div>
-          ))}
-          {inactiveClients.length > 0 && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border text-sm">
-              <UserX className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <span><strong>{inactiveClients.length}</strong> client{inactiveClients.length > 1 ? 'i' : 'e'} inattiv{inactiveClients.length > 1 ? 'i' : 'o'} (nessuna sessione negli ultimi 14 giorni): {inactiveClients.slice(0, 3).map(c => c.name).join(', ')}{inactiveClients.length > 3 ? '...' : ''}</span>
-            </div>
-          )}
-        </div>
-      )}
+      <RetentionAlerts />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s, i) => (

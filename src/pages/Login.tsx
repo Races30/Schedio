@@ -21,8 +21,8 @@ export default function Login() {
       const { error } = await signIn(email, password);
       if (error) throw error;
       navigate('/dashboard', { replace: true });
-    } catch (err: any) {
-      toast.error(err.message || 'Credenziali non valide');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Credenziali non valide');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -135,7 +135,7 @@ export default function PublicBooking() {
     return matchers;
   }, [activity, earliestDate, latestDate]);
 
-  const slotConflictsForEmployee = (slot: string, empId: string, appts: Pick<Appointment, 'start_time' | 'end_time' | 'employee_id' | 'buffer_time_minutes'>[]) => {
+  const slotConflictsForEmployee = useCallback((slot: string, empId: string, appts: Pick<Appointment, 'start_time' | 'end_time' | 'employee_id' | 'buffer_time_minutes'>[]) => {
     const slotEnd = addMinutesToTime(slot, duration);
     return appts
       .filter((a) => a.employee_id === empId)
@@ -144,7 +144,7 @@ export default function PublicBooking() {
         const aEnd = addMinutesToTime(formatTime(a.end_time), a.buffer_time_minutes || bufferMinutes);
         return slot < aEnd && slotEnd > aStart;
       });
-  };
+  }, [duration, bufferMinutes]);
 
   const availableSlots = useMemo(() => {
     if (!activity || !selectedDate) return [];
@@ -187,7 +187,7 @@ export default function PublicBooking() {
       }
       return true;
     });
-  }, [activity, selectedDate, existingAppts, duration, bufferMinutes, noPreference, compatibleEmployees, selectedEmployee, isCoach, minNoticeHours]);
+  }, [activity, selectedDate, existingAppts, duration, bufferMinutes, noPreference, compatibleEmployees, selectedEmployee, isCoach, minNoticeHours, slotConflictsForEmployee]);
 
   const scrollToBooking = () => {
     setStep(1);
@@ -261,8 +261,8 @@ export default function PublicBooking() {
       });
       if (error) throw error;
       setBooked(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Errore durante la prenotazione');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante la prenotazione');
     } finally {
       setLoading(false);
     }

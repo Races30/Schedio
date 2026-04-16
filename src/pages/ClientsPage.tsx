@@ -69,7 +69,14 @@ export default function ClientsPage() {
                 {c.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium">{c.name}</div>
+                <div className="font-medium flex items-center gap-2">
+                  {c.name}
+                  {c.status && c.status !== 'attivo' && (
+                    <span className={`text-[10px] px-2 py-0.5 flex-shrink-0 rounded-full ${c.status === 'no-show' ? 'bg-destructive/10 text-destructive font-semibold' : 'bg-warning/10 text-warning font-semibold cursor-help'}`} title={c.status_reason || ''}>
+                      {c.status.toUpperCase()}
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-muted-foreground flex items-center gap-3 flex-wrap">
                   {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>}
                   {c.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {c.email}</span>}
@@ -117,12 +124,18 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
     setLoading(true);
     try {
-      const payload: any = { activity_id: activityId, name: name.trim(), phone: phone || null, email: email || null, notes: notes || null };
-      if (isCoach) {
-        payload.objective = objective || null;
-        payload.level = level || null;
-        payload.frequency = frequency || null;
-      }
+      const payload = {
+        activity_id: activityId,
+        name: name.trim(),
+        phone: phone || null,
+        email: email || null,
+        notes: notes || null,
+        ...(isCoach ? {
+          objective: objective || null,
+          level: level || null,
+          frequency: frequency || null,
+        } : {})
+      };
       if (client) {
         await supabase.from('clients').update(payload).eq('id', client.id);
         toast.success('Cliente aggiornato');
@@ -132,7 +145,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
       }
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
-    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }
   };
 
   const deleteClient = async () => {
@@ -143,7 +156,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
       toast.success('Cliente eliminato');
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
-    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }
   };
 
   return (
@@ -257,6 +270,17 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               {isCoach && client.frequency && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza: {client.frequency}</div>}
               {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
             </div>
+
+            {/* Status info */}
+            {client.status && client.status !== 'attivo' && (
+              <div className={`p-3 rounded-lg border text-sm ${client.status === 'no-show' ? 'bg-destructive/10 border-destructive/20 text-destructive' : 'bg-warning/10 border-warning/20 text-warning'}`}>
+                <div className="font-bold flex items-center gap-2">
+                  <Target className="w-4 h-4" /> 
+                  Stato: {client.status.toUpperCase()}
+                </div>
+                {client.status_reason && <p className="mt-1 text-xs opacity-90">{client.status_reason}</p>}
+              </div>
+            )}
 
             {/* Active package for coach */}
             {isCoach && activePackage && (
@@ -390,7 +414,7 @@ function ProgressForm({ clientId, activityId, onDone }: { clientId: string; acti
       if (error) throw error;
       toast.success('Misurazione salvata');
       onDone();
-    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }
   };
 
   return (

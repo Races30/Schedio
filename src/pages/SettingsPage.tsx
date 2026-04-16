@@ -74,8 +74,8 @@ export default function SettingsPage() {
       setBufferMinutes(activity.buffer_minutes);
       setHostWorksInSalon(activity.host_works_in_salon !== false);
       setLogoUrl(activity.logo_url || null);
-      setMaxAdvanceDays((activity as any).max_advance_booking_days || 60);
-      setMinNoticeHours((activity as any).min_booking_notice_hours || 2);
+      setMaxAdvanceDays(activity.max_advance_booking_days || 60);
+      setMinNoticeHours(activity.min_booking_notice_hours || 2);
       // Extract specialization from description for coach
       if (activity.category === 'coach' && activity.description) {
         const match = SPECIALIZATIONS.find(s => activity.description?.toLowerCase().includes(s.toLowerCase()));
@@ -100,8 +100,8 @@ export default function SettingsPage() {
       const { data: { publicUrl } } = supabase.storage.from('activity-assets').getPublicUrl(path);
       setLogoUrl(publicUrl);
       toast.success('Foto caricata');
-    } catch (err: any) {
-      toast.error(err.message || 'Errore upload');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore upload');
     } finally {
       setUploading(false);
     }
