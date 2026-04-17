@@ -20,6 +20,8 @@ export default function ClientsPage() {
   const { activity } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'name' | 'last' | 'created' | 'sessions'>('last');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [detailClient, setDetailClient] = useState<Client | null>(null);
@@ -35,11 +37,24 @@ export default function ClientsPage() {
     enabled: !!activity,
   });
 
-  const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
-  );
+  const filtered = clients
+    .filter((c) => {
+      const query = search.toLowerCase();
+      const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase();
+      const matchesSearch =
+        c.name.toLowerCase().includes(query) ||
+        fullName.includes(query) ||
+        c.email?.toLowerCase().includes(query) ||
+        c.phone?.includes(search);
+      const matchesStatus = statusFilter === 'all' || (c.activity_status || c.status || 'attivo') === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'created') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'sessions') return (b.sessions_remaining || 0) - (a.sessions_remaining || 0);
+      return new Date(b.last_completed_at || b.updated_at).getTime() - new Date(a.last_completed_at || a.updated_at).getTime();
+    });
 
   const openNew = () => { setEditClient(null); setDialogOpen(true); };
   const openEdit = (c: Client) => { setEditClient(c); setDialogOpen(true); };
@@ -54,6 +69,27 @@ export default function ClientsPage() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca clienti..." className="pl-10" />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3 mb-6">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger><SelectValue placeholder="Filtra stato" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            <SelectItem value="attivo">Attivo</SelectItem>
+            <SelectItem value="inattivo">Inattivo</SelectItem>
+            <SelectItem value="da ricontattare">Da ricontattare</SelectItem>
+            <SelectItem value="no-show">No-show</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+          <SelectTrigger><SelectValue placeholder="Ordina per" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="last">Ultima attività</SelectItem>
+            <SelectItem value="name">Nome</SelectItem>
+            <SelectItem value="created">Più recenti</SelectItem>
+            {isCoach && <SelectItem value="sessions">Sessioni rimanenti</SelectItem>}
+          </SelectContent>
+        </Select>
       </div>
 
       {filtered.length === 0 ? (
@@ -82,6 +118,11 @@ export default function ClientsPage() {
                   {c.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {c.email}</span>}
                   {isCoach && c.objective && <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {c.objective}</span>}
                 </div>
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                  {!isCoach && c.last_service_name && <span>Ultimo servizio: {c.last_service_name}</span>}
+                  {c.visit_frequency_days ? <span>Frequenza: ~{Math.round(c.visit_frequency_days)} giorni</span> : null}
+                  {isCoach && typeof c.sessions_remaining === 'number' && <span>Sessioni rimanenti: {c.sessions_remaining}</span>}
+                </div>
               </div>
               <Button variant="ghost" size="icon" onClick={e => { e.stopPropagation(); openEdit(c); }}>
                 <Edit className="w-4 h-4" />
@@ -109,6 +150,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
   const [phone, setPhone] = useState(client?.phone || '');
   const [email, setEmail] = useState(client?.email || '');
   const [notes, setNotes] = useState(client?.notes || '');
+  const [importantNotes, setImportantNotes] = useState(client?.important_notes || '');
   const [objective, setObjective] = useState(client?.objective || '');
   const [level, setLevel] = useState(client?.level || '');
   const [frequency, setFrequency] = useState(client?.frequency || '');
@@ -118,7 +160,11 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
     setName(client?.name || ''); setPhone(client?.phone || ''); setEmail(client?.email || '');
     setNotes(client?.notes || ''); setObjective(client?.objective || '');
     setLevel(client?.level || ''); setFrequency(client?.frequency || '');
+    setImportantNotes(client?.important_notes || '');
   });
+
+  const normalizePhone = (value: string) => value.trim().replace(/[^\d+]/g, '') || null;
+  const normalizeEmail = (value: string) => value.trim().toLowerCase() || null;
 
   const save = async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
@@ -127,13 +173,20 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
       const payload = {
         activity_id: activityId,
         name: name.trim(),
+        first_name: name.trim().split(' ')[0] || null,
+        last_name: name.trim().split(' ').slice(1).join(' ') || null,
+        full_name_normalized: name.trim().toLowerCase().replace(/\s+/g, ' '),
         phone: phone || null,
+        phone_normalized: phone ? normalizePhone(phone) : null,
         email: email || null,
+        email_normalized: email ? normalizeEmail(email) : null,
         notes: notes || null,
+        important_notes: importantNotes || null,
         ...(isCoach ? {
           objective: objective || null,
           level: level || null,
           frequency: frequency || null,
+          training_frequency: frequency || null,
         } : {})
       };
       if (client) {
@@ -187,6 +240,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
             </>
           )}
           <div><Label>Note</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note opzionali" /></div>
+          <div><Label>Note importanti</Label><Textarea value={importantNotes} onChange={e => setImportantNotes(e.target.value)} placeholder="Allergie, preferenze forti, indicazioni operative..." /></div>
           <div className="flex gap-2">
             {client && <Button variant="destructive" onClick={deleteClient} disabled={loading}>Elimina</Button>}
             <Button variant="hero" onClick={save} disabled={loading} className="flex-1">
@@ -234,6 +288,8 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
   });
 
   const activePackage = clientPackages.find(p => p.status === 'active');
+  const futureAppointments = appointments.filter((a) => new Date(a.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date));
+  const pastAppointments = appointments.filter((a) => new Date(a.date) < new Date()).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -268,7 +324,11 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               {client.email && <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /> {client.email}</div>}
               {isCoach && client.level && <div className="flex items-center gap-2 text-sm"><TrendingUp className="w-4 h-4 text-muted-foreground" /> Livello: {client.level}</div>}
               {isCoach && client.frequency && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza: {client.frequency}</div>}
+              {!isCoach && client.last_service_name && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Ultimo servizio: {client.last_service_name}</div>}
+              {client.visit_frequency_days && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza media: {Math.round(client.visit_frequency_days)} giorni</div>}
+              {isCoach && client.next_recommended_at && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Prossima consigliata: {formatDate(client.next_recommended_at)}</div>}
               {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
+              {client.important_notes && <p className="text-sm text-destructive">{client.important_notes}</p>}
             </div>
 
             {/* Status info */}
@@ -300,12 +360,33 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
 
             {/* Appointment history */}
             <div>
-              <h3 className="font-semibold mb-2">Storico {isCoach ? 'sessioni' : 'appuntamenti'}</h3>
-              {appointments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun {isCoach ? 'sessione' : 'appuntamento'}</p>
+              <h3 className="font-semibold mb-2">{isCoach ? 'Sessioni future' : 'Appuntamenti futuri'}</h3>
+              {futureAppointments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun appuntamento futuro</p>
               ) : (
                 <div className="space-y-2">
-                  {appointments.map(a => (
+                  {futureAppointments.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+                      <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{a.service?.name || (isCoach ? 'Sessione' : 'Appuntamento')}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
+                      </div>
+                      <span className={`status-badge status-${a.status}`}>
+                        {a.status === 'confirmed' ? 'Conf.' : a.status === 'completed' ? 'Fatto' : a.status === 'cancelled' ? 'Ann.' : 'Attesa'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="font-semibold mb-2">{isCoach ? 'Storico sessioni' : 'Storico appuntamenti'}</h3>
+              {pastAppointments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun appuntamento passato</p>
+              ) : (
+                <div className="space-y-2">
+                  {pastAppointments.map(a => (
                     <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
                       <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
                       <div className="flex-1">

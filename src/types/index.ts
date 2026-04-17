@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed';
+export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'no-show' | 'completed';
 
 export type ActivityCategory = 'salone' | 'coach';
 
@@ -30,13 +30,33 @@ export interface Client {
   id: string;
   activity_id: string;
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name_normalized?: string | null;
+  phone_normalized?: string | null;
+  email_normalized?: string | null;
   phone: string | null;
   email: string | null;
   notes: string | null;
+  important_notes?: string | null;
   preferences: Record<string, unknown> | null;
   objective?: string | null;
   level?: string | null;
   frequency?: string | null;
+  training_frequency?: string | null;
+  last_booking_at?: string | null;
+  last_completed_at?: string | null;
+  last_workout_at?: string | null;
+  last_service_id?: string | null;
+  last_service_name?: string | null;
+  visit_frequency_days?: number | null;
+  next_recommended_at?: string | null;
+  active_package_id?: string | null;
+  sessions_purchased?: number | null;
+  sessions_used?: number | null;
+  sessions_remaining?: number | null;
+  package_expiry_date?: string | null;
+  activity_status?: string | null;
   created_at: string;
   updated_at: string;
 }

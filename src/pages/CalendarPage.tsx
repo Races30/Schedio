@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { findActivePackage, decrementPackageSession } from '@/utils/clientMatching';
+import { findActivePackage, decrementPackageSession, findOrCreateClient } from '@/utils/clientMatching';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -385,6 +385,8 @@ function AppointmentDialog({
   const [status, setStatus] = useState<Appointment['status']>('confirmed');
   const [notes, setNotes] = useState('');
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -399,7 +401,18 @@ function AppointmentDialog({
     setStatus((appointment?.status as Appointment['status']) || 'confirmed');
     setNotes(appointment?.notes || '');
     setClientName(appointment?.client_name || '');
+    setClientPhone(appointment?.client_phone || '');
+    setClientEmail(appointment?.client_email || '');
   }, [open, appointment?.id, defaultDate, defaultTime, appointment, activity]);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const selectedClient = clients.find((c) => c.id === clientId);
+    if (!selectedClient) return;
+    setClientName(selectedClient.name || '');
+    setClientPhone(selectedClient.phone || '');
+    setClientEmail(selectedClient.email || '');
+  }, [clientId, clients]);
 
   const endTime = addMinutesToTime(startTime, duration);
   const selectedService = services.find((s) => s.id === serviceId);
@@ -427,11 +440,21 @@ function AppointmentDialog({
     setLoading(true);
     try {
       const isCoach = activity.category === 'coach';
+      let ensuredClientId = clientId || null;
+
+      if (!ensuredClientId && clientName.trim()) {
+        ensuredClientId = await findOrCreateClient({
+          activityId: activity.id,
+          name: clientName.trim(),
+          phone: clientPhone || null,
+          email: clientEmail || null,
+        });
+      }
 
       // Auto-link package for coach on new appointments
       let packageId: string | null = null;
-      if (isCoach && !appointment && clientId) {
-        const activePkg = await findActivePackage(clientId, activity.id);
+      if (isCoach && !appointment && ensuredClientId) {
+        const activePkg = await findActivePackage(ensuredClientId, activity.id);
         if (activePkg && activePkg.used_sessions < activePkg.total_sessions) {
           packageId = activePkg.id;
         }
@@ -439,7 +462,7 @@ function AppointmentDialog({
 
       const payload = {
         activity_id: activity.id,
-        client_id: clientId || null,
+        client_id: ensuredClientId,
         service_id: serviceId || null,
         employee_id: isSalone ? employeeId : null,
         date,
@@ -450,6 +473,8 @@ function AppointmentDialog({
         status,
         notes: notes || null,
         client_name: clientName || null,
+        client_phone: clientPhone || null,
+        client_email: clientEmail || null,
         color: selectedService?.color || null,
         ...(packageId ? { package_id: packageId } : {}),
       };
@@ -526,7 +551,11 @@ function AppointmentDialog({
             </div>
           )}
           {!clientId && (
-            <div><Label>Nome cliente</Label><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nome cliente" /></div>
+            <div className="space-y-3">
+              <div><Label>Nome cliente</Label><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nome cliente" /></div>
+              <div><Label>Telefono</Label><Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" /></div>
+              <div><Label>Email</Label><Input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="email@esempio.com" type="email" /></div>
+            </div>
           )}
           {services.length > 0 && (
             <div>

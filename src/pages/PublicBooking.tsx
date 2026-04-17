@@ -229,6 +229,7 @@ export default function PublicBooking() {
         name: clientName,
         phone: clientPhone || null,
         email: clientEmail || null,
+        notes: notes || null,
         ...(isCoach && clientObjective ? { objective: clientObjective } : {}),
       });
 
