@@ -1,4 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
+
+type ClientRow = Database['public']['Tables']['clients']['Row'];
+type ClientUpdate = Database['public']['Tables']['clients']['Update'];
+type ClientInsert = Database['public']['Tables']['clients']['Insert'];
 
 interface ClientMatchInput {
   activityId: string;
@@ -57,146 +62,166 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
   const phone = normalizePhone(input.phone);
   const fullNameNormalized = normalizeName(fullName);
 
-  const findByEmail = async () => {
-    if (!email) return null;
-    const { data } = await supabase
-      .from('clients')
-      .select('id, name, phone, email, first_name, last_name, notes, important_notes')
+  // Helper to fetch client with fallback for missing columns
+  // We use 'as any' to wrap the supabase query builder because the complex 
+  // column selection logic triggers "Type instantiation is excessively deep" errors.
+  const getClientSafely = async (filterCol: string, filterVal: string): Promise<Partial<ClientRow> | null> => {
+    // 1. Try with all columns (Unified CRM)
+    const crmQuery = supabase.from('clients').select('id, name, phone, email, first_name, last_name, notes, important_notes, email_normalized, phone_normalized') as any;
+    const crmResult = await crmQuery
       .eq('activity_id', activityId)
-      .eq('email_normalized', email)
+      .eq(filterCol, filterVal)
       .limit(1)
       .maybeSingle();
-    return data;
+
+    if (crmResult.error && (crmResult.error.code === '42703' || crmResult.error.message?.includes('column'))) {
+      // 2. Fallback to basic columns if CRM columns don't exist
+      const fallbackCol = filterCol.replace('_normalized', '');
+      const fallbackQuery = supabase.from('clients').select('id, name, phone, email, notes') as any;
+      const fallbackResult = await fallbackQuery
+        .eq('activity_id', activityId)
+        .eq(fallbackCol, filterVal)
+        .limit(1)
+        .maybeSingle();
+      return fallbackResult.data as Partial<ClientRow> | null;
+    }
+    return crmResult.data as Partial<ClientRow> | null;
   };
 
-  const findByPhone = async () => {
-    if (!phone) return null;
-    const { data } = await supabase
-      .from('clients')
-      .select('id, name, phone, email, first_name, last_name, notes, important_notes')
-      .eq('activity_id', activityId)
-      .eq('phone_normalized', phone)
-      .limit(1)
-      .maybeSingle();
-    return data;
-  };
+  const findByEmail = () => email ? getClientSafely('email_normalized', email) : Promise.resolve(null);
+  const findByPhone = () => phone ? getClientSafely('phone_normalized', phone) : Promise.resolve(null);
 
-  const findByName = async () => {
+  const findByName = async (): Promise<Partial<ClientRow> | null> => {
     if (!fullNameNormalized) return null;
-    const { data } = await supabase
-      .from('clients')
-      .select('id, name, phone, email, first_name, last_name, notes, important_notes')
+    const crmQuery = supabase.from('clients').select('id, name, phone, email, first_name, last_name, notes, important_notes, full_name_normalized') as any;
+    const crmResult = await crmQuery
       .eq('activity_id', activityId)
       .eq('full_name_normalized', fullNameNormalized)
       .limit(2);
-    if (!data || data.length !== 1) return null;
-    return data[0];
+
+    if (crmResult.error && (crmResult.error.code === '42703' || crmResult.error.message?.includes('column'))) {
+      const fallbackQuery = supabase.from('clients').select('id, name, phone, email, notes') as any;
+      const fallbackResult = await fallbackQuery
+        .eq('activity_id', activityId)
+        .eq('name', fullName)
+        .limit(2);
+      
+      if (!fallbackResult.data || fallbackResult.data.length !== 1) return null;
+      return fallbackResult.data[0] as Partial<ClientRow>;
+    }
+    
+    if (!crmResult.data || crmResult.data.length !== 1) return null;
+    return crmResult.data[0] as Partial<ClientRow>;
   };
 
-  const mergeClient = async (clientId: string, existing?: {
-    name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    notes?: string | null;
-    important_notes?: string | null;
-  }) => {
-    const updatePayload = {
+  const mergeClient = async (clientId: string, existing?: Partial<ClientRow>) => {
+    const updatePayload: ClientUpdate = {
       name: fillIfMissing(existing?.name, fullName),
-      first_name: fillIfMissing(existing?.first_name, firstName),
-      last_name: fillIfMissing(existing?.last_name, lastName),
       email: fillIfMissing(existing?.email, email),
-      email_normalized: fillIfMissing(existing?.email, email),
       phone: fillIfMissing(existing?.phone, phone),
-      phone_normalized: fillIfMissing(existing?.phone, phone),
-      full_name_normalized: fullNameNormalized || undefined,
       notes: fillIfMissing(existing?.notes, notes || undefined),
-      important_notes: fillIfMissing(existing?.important_notes, importantNotes || undefined),
       objective: objective || undefined,
       level: level || undefined,
       frequency: frequency || undefined,
-      training_frequency: frequency || undefined,
     };
 
-    await supabase.from('clients').update(updatePayload).eq('id', clientId);
+    // Add CRM columns only if they appear to be supported in the schema
+    const hasCRM = existing && ('email_normalized' in existing || 'first_name' in existing);
+    if (hasCRM) {
+      updatePayload.first_name = fillIfMissing(existing?.first_name, firstName);
+      updatePayload.last_name = fillIfMissing(existing?.last_name, lastName);
+      updatePayload.email_normalized = fillIfMissing(existing?.email_normalized, email);
+      updatePayload.phone_normalized = fillIfMissing(existing?.phone_normalized, phone);
+      updatePayload.full_name_normalized = fullNameNormalized || undefined;
+      updatePayload.important_notes = fillIfMissing(existing?.important_notes, importantNotes || undefined);
+      updatePayload.training_frequency = frequency || undefined;
+    }
+
+    const { error } = await supabase.from('clients').update(updatePayload).eq('id', clientId);
+    
+    // If update fails due to missing columns, retry with basic payload
+    if (error && (error.code === '42703' || error.message?.includes('column'))) {
+      const basicPayload: ClientUpdate = {
+        name: updatePayload.name,
+        email: updatePayload.email,
+        phone: updatePayload.phone,
+        notes: updatePayload.notes,
+        objective: updatePayload.objective,
+        level: updatePayload.level,
+        frequency: updatePayload.frequency,
+      };
+      await supabase.from('clients').update(basicPayload).eq('id', clientId);
+    }
     return clientId;
   };
 
-  // Priority 1: match by normalized email
-  if (email) {
-    const data = await findByEmail();
-    if (data) {
-      return mergeClient(data.id, data);
-    }
-  }
+  // Matching strategy
+  let matchedClient = await findByEmail();
+  if (!matchedClient) matchedClient = await findByPhone();
+  if (!matchedClient) matchedClient = await findByName();
 
-  // Priority 2: match by normalized phone
-  if (phone) {
-    const data = await findByPhone();
-    if (data) {
-      return mergeClient(data.id, data);
-    }
-  }
-
-  // Priority 3: fallback by normalized full name (only if unambiguous)
-  if (fullNameNormalized) {
-    const data = await findByName();
-    if (data) {
-      return mergeClient(data.id, data);
-    }
+  if (matchedClient?.id) {
+    return mergeClient(matchedClient.id, matchedClient);
   }
 
   // No match → create new client
-  const { data: newClient, error } = await supabase
-    .from('clients')
-    .insert({
-      activity_id: activityId,
-      name: fullName,
-      first_name: firstName,
-      last_name: lastName,
-      full_name_normalized: fullNameNormalized,
-      phone: phone || null,
-      phone_normalized: phone || null,
-      email: email || null,
-      email_normalized: email || null,
-      objective: objective || null,
-      level: level || null,
-      frequency: frequency || null,
-      training_frequency: frequency || null,
-      notes: notes || null,
-      important_notes: importantNotes || null,
-    })
-    .select('id')
-    .single();
+  const baseInsert: ClientInsert = {
+    activity_id: activityId,
+    name: fullName,
+    phone: phone || null,
+    email: email || null,
+    objective: objective || null,
+    level: level || null,
+    frequency: frequency || null,
+    notes: notes || null,
+  };
 
-  if (error) throw error;
-  return newClient.id;
+  const extendedInsert: ClientInsert = {
+    ...baseInsert,
+    first_name: firstName,
+    last_name: lastName,
+    full_name_normalized: fullNameNormalized,
+    phone_normalized: phone || null,
+    email_normalized: email || null,
+    training_frequency: frequency || null,
+    important_notes: importantNotes || null,
+  };
+
+  let insertRes = await supabase.from('clients').insert(extendedInsert).select('id').single();
+
+  if (insertRes.error && (insertRes.error.code === '42703' || insertRes.error.message?.includes('column'))) {
+    insertRes = await supabase.from('clients').insert(baseInsert).select('id').single();
+  }
+
+  if (insertRes.error) throw insertRes.error;
+  return insertRes.data.id;
 }
 
 export async function refreshClientMetrics(clientId: string) {
-  await supabase.rpc('recompute_client_metrics', { p_client_id: clientId });
+  const result = await (supabase.rpc as any)('recompute_client_metrics', { p_client_id: clientId });
+  return result;
 }
 
 export async function findActivePackage(clientId: string, activityId: string) {
-  const { data } = await supabase
+  const query = supabase
     .from('packages')
     .select('id, total_sessions, used_sessions')
     .eq('client_id', clientId)
     .eq('activity_id', activityId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1) as any;
+    
+  const { data } = await query.maybeSingle();
   return data;
 }
 
 export async function decrementPackageSession(packageId: string) {
-  const { data: pkg } = await supabase
+  const { data: pkg } = await (supabase
     .from('packages')
     .select('used_sessions, total_sessions')
     .eq('id', packageId)
-    .single();
+    .single() as any);
 
   if (!pkg) return;
 

@@ -40,7 +40,9 @@ export default function ClientsPage() {
   const filtered = clients
     .filter((c) => {
       const query = search.toLowerCase();
-      const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase();
+      const fullName = (c.first_name || c.last_name) 
+        ? `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase()
+        : c.name.toLowerCase();
       const matchesSearch =
         c.name.toLowerCase().includes(query) ||
         fullName.includes(query) ||
@@ -170,7 +172,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
     setLoading(true);
     try {
-      const payload = {
+      const payload: any = {
         activity_id: activityId,
         name: name.trim(),
         first_name: name.trim().split(' ')[0] || null,
@@ -189,11 +191,34 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
           training_frequency: frequency || null,
         } : {})
       };
+      
       if (client) {
-        await supabase.from('clients').update(payload).eq('id', client.id);
+        // Safe update: try all columns, then fall back if needed
+        const { error } = await supabase.from('clients').update(payload).eq('id', client.id);
+        if (error && (error.code === '42703' || error.message?.includes('column'))) {
+          const basicPayload = {
+            activity_id: activityId,
+            name: name.trim(),
+            phone: phone || null,
+            email: email || null,
+            notes: notes || null,
+          };
+          await supabase.from('clients').update(basicPayload).eq('id', client.id);
+        }
         toast.success('Cliente aggiornato');
       } else {
-        await supabase.from('clients').insert(payload);
+        // Safe insert: try all columns, then fall back if needed
+        const { error } = await supabase.from('clients').insert(payload);
+        if (error && (error.code === '42703' || error.message?.includes('column'))) {
+          const basicPayload = {
+            activity_id: activityId,
+            name: name.trim(),
+            phone: phone || null,
+            email: email || null,
+            notes: notes || null,
+          };
+          await supabase.from('clients').insert(basicPayload);
+        }
         toast.success('Cliente creato');
       }
       queryClient.invalidateQueries({ queryKey: ['clients'] });

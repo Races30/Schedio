@@ -53,9 +53,18 @@ SET
   ),
   full_name_normalized = lower(trim(regexp_replace(name, '\s+', ' ', 'g'))),
   email_normalized = CASE WHEN email IS NOT NULL THEN lower(trim(email)) ELSE NULL END,
-  phone_normalized = CASE WHEN phone IS NOT NULL THEN regexp_replace(phone, '[^0-9+]', '', 'g') ELSE NULL END,
-  activity_status = COALESCE(activity_status, status, 'attivo')
+  phone_normalized = CASE WHEN phone IS NOT NULL THEN regexp_replace(phone, '[^0-9+]', '', 'g') ELSE NULL END
 WHERE true;
+
+-- Safe backfill for activity_status (checks for legacy 'status' column)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'clients' AND column_name = 'status') THEN
+    UPDATE public.clients SET activity_status = COALESCE(activity_status, status, 'attivo');
+  ELSE
+    UPDATE public.clients SET activity_status = COALESCE(activity_status, 'attivo');
+  END IF;
+END $$;
 
 -- 5) Recompute derived fields from operational data.
 CREATE OR REPLACE FUNCTION public.recompute_client_metrics(p_client_id uuid)

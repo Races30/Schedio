@@ -691,6 +691,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      recompute_client_metrics: {
+        Args: {
+          p_client_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
