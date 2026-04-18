@@ -242,7 +242,7 @@ export default function PublicBooking() {
         }
       }
 
-      const { error } = await supabase.from('appointments').insert({
+      const appointmentPayload: any = {
         activity_id: activity.id,
         date: selectedDate,
         start_time: selectedTime,
@@ -259,11 +259,24 @@ export default function PublicBooking() {
         employee_id: assignedEmployeeId,
         color: selectedService?.color || null,
         package_id: packageId,
-      });
+      };
+
+      let { error } = await supabase.from('appointments').insert(appointmentPayload);
+      
+      // Fallback: if 'package_id' column doesn't exist, retry without it
+      if (error && (error.code === '42703' || error.message?.includes('column'))) {
+        delete appointmentPayload.package_id;
+        const retry = await supabase.from('appointments').insert(appointmentPayload);
+        error = retry.error;
+      }
+
       if (error) throw error;
       setBooked(true);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Errore durante la prenotazione');
+    } catch (err: any) {
+      console.error('Booking error:', err);
+      const msg = err.message || 'Errore sconosciuto';
+      const code = err.code || '';
+      toast.error(`Errore prenotazione: ${msg} ${code ? `(${code})` : ''}`);
     } finally {
       setLoading(false);
     }
