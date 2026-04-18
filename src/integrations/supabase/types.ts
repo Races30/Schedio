@@ -248,51 +248,111 @@ export type Database = {
       clients: {
         Row: {
           activity_id: string
+          activity_status: string | null
+          active_package_id: string | null
           created_at: string
           email: string | null
+          email_normalized: string | null
+          first_name: string | null
           frequency: string | null
+          full_name_normalized: string | null
           id: string
+          important_notes: string | null
+          last_booking_at: string | null
+          last_completed_at: string | null
+          last_name: string | null
+          last_service_id: string | null
+          last_service_name: string | null
+          last_workout_at: string | null
           level: string | null
           name: string
+          next_recommended_at: string | null
           notes: string | null
           objective: string | null
+          package_expiry_date: string | null
           phone: string | null
+          phone_normalized: string | null
           preferences: Json | null
+          sessions_purchased: number | null
+          sessions_remaining: number | null
+          sessions_used: number | null
           status: string | null
           status_reason: string | null
+          training_frequency: string | null
           updated_at: string
+          visit_frequency_days: number | null
         }
         Insert: {
           activity_id: string
+          activity_status?: string | null
+          active_package_id?: string | null
           created_at?: string
           email?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
           frequency?: string | null
+          full_name_normalized?: string | null
           id?: string
+          important_notes?: string | null
+          last_booking_at?: string | null
+          last_completed_at?: string | null
+          last_name?: string | null
+          last_service_id?: string | null
+          last_service_name?: string | null
+          last_workout_at?: string | null
           level?: string | null
           name: string
+          next_recommended_at?: string | null
           notes?: string | null
           objective?: string | null
+          package_expiry_date?: string | null
           phone?: string | null
+          phone_normalized?: string | null
           preferences?: Json | null
+          sessions_purchased?: number | null
+          sessions_remaining?: number | null
+          sessions_used?: number | null
           status?: string | null
           status_reason?: string | null
+          training_frequency?: string | null
           updated_at?: string
+          visit_frequency_days?: number | null
         }
         Update: {
           activity_id?: string
+          activity_status?: string | null
+          active_package_id?: string | null
           created_at?: string
           email?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
           frequency?: string | null
+          full_name_normalized?: string | null
           id?: string
+          important_notes?: string | null
+          last_booking_at?: string | null
+          last_completed_at?: string | null
+          last_name?: string | null
+          last_service_id?: string | null
+          last_service_name?: string | null
+          last_workout_at?: string | null
           level?: string | null
           name?: string
+          next_recommended_at?: string | null
           notes?: string | null
           objective?: string | null
+          package_expiry_date?: string | null
           phone?: string | null
+          phone_normalized?: string | null
           preferences?: Json | null
+          sessions_purchased?: number | null
+          sessions_remaining?: number | null
+          sessions_used?: number | null
           status?: string | null
           status_reason?: string | null
+          training_frequency?: string | null
           updated_at?: string
+          visit_frequency_days?: number | null
         }
         Relationships: [
           {
