@@ -49,7 +49,7 @@ export default function Landing() {
     <div className="min-h-screen bg-background">
       <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
-          <span className="font-display text-xl font-bold text-foreground">Prenota<span className="text-primary">Pro</span></span>
+          <span className="font-display text-xl font-bold text-foreground">Schedio</span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => navigate('/login')}>Accedi</Button>
             <Button variant="hero" onClick={() => navigate('/register')}>Inizia gratis</Button>

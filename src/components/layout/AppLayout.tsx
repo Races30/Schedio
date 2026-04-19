@@ -35,7 +35,7 @@ export default function AppLayout() {
       <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div>
-            <span className="font-display text-lg font-bold">Prenota<span className="text-primary">Pro</span></span>
+            <span className="font-display text-lg font-bold">Schedio</span>
             <div className="text-xs text-muted-foreground mt-1 truncate">{activity.name}</div>
           </div>
           <NotificationBell />
