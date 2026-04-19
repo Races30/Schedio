@@ -176,12 +176,12 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-8">{isCoach ? 'Impostazioni Coach' : 'Impostazioni'}</h1>
+      <h1 className="text-2xl font-bold">{isCoach ? 'Impostazioni Personal Trainer' : 'Impostazioni'}</h1>
 
       <div className="space-y-8">
         {/* Info section */}
         <section className="glass-card p-6">
-          <h2 className="text-lg font-semibold mb-4">{isCoach ? 'Profilo trainer' : 'Informazioni salone'}</h2>
+          <h2 className="text-lg font-semibold mb-4">{isCoach ? 'Profilo trainer' : 'Informazioni attività'}</h2>
           <div className="grid gap-4">
             {/* Photo */}
             <div>
@@ -208,7 +208,7 @@ export default function SettingsPage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <Label>{isCoach ? 'Nome attività' : 'Nome salone'}</Label>
+                <Label>{isCoach ? 'Nome attività' : 'Nome attività'}</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div>
@@ -251,14 +251,14 @@ export default function SettingsPage() {
         {/* Salon-only: host role */}
         {isSalone && (
           <section className="glass-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Ruolo titolare nel salone</h2>
+            <h2 className="text-lg font-semibold mb-4">Ruolo titolare</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Se lavori anche tu come operatore, apparirai nei dipendenti, nei filtri del calendario e potrai ricevere prenotazioni.
             </p>
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
               <div>
-                <Label htmlFor="host-works" className="text-base font-medium">Lavoro nel salone come operatore</Label>
-                <p className="text-xs text-muted-foreground mt-1">Disattiva se gestisci solo il salone senza prendere clienti in agenda.</p>
+                <Label htmlFor="host-works" className="text-base font-medium">Lavoro in prima persona come operatore</Label>
+                <p className="text-xs text-muted-foreground mt-1">Disattiva se ti occupi solo della gestione senza prendere prenotazioni in agenda.</p>
               </div>
               <Switch id="host-works" checked={hostWorksInSalon} onCheckedChange={setHostWorksInSalon} />
             </div>
@@ -268,7 +268,7 @@ export default function SettingsPage() {
         {/* Salon-only: management links */}
         {isSalone && (
           <section className="glass-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Gestione salone</h2>
+            <h2 className="text-lg font-semibold mb-4">Gestione attività</h2>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button variant="outline" className="justify-start" asChild>
                 <Link to="/services"><Scissors className="w-4 h-4 mr-2" /> Servizi</Link>

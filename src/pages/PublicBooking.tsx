@@ -306,7 +306,7 @@ export default function PublicBooking() {
           <h1 className="text-2xl font-bold mb-2">Prenotazione inviata!</h1>
           <p className="text-muted-foreground mb-4">La tua richiesta è stata inviata a {activity.name}.</p>
           <div className="bg-muted/50 rounded-lg p-4 text-left text-sm space-y-1 mb-6">
-            <div><strong>{isSalone ? 'Attività' : 'Coach'}:</strong> {activity.name}</div>
+            <div><strong>{isSalone ? 'Attività' : 'Personal Trainer'}:</strong> {activity.name}</div>
             <div><strong>Data:</strong> {format(parseISO(selectedDate), 'EEEE dd MMMM yyyy', { locale: it })}</div>
             <div><strong>Orario:</strong> {formatTime(selectedTime)} - {addMinutesToTime(selectedTime, duration)}</div>
             <div><strong>Durata:</strong> {duration} minuti</div>
@@ -324,7 +324,7 @@ export default function PublicBooking() {
 
   const openDayNames = activity.opening_days.sort().map(d => getDayName(d)).join(', ');
   const CategoryIcon = isSalone ? Scissors : Dumbbell;
-  const categoryLabel = isSalone ? 'Salone' : 'Personal Trainer';
+  const categoryLabel = isSalone ? 'Barbiere/Parrucchiere' : 'Personal Trainer';
 
   const faqs = isSalone ? [
     { q: 'Quanto dura un appuntamento?', a: `La durata media è di ${activity.default_appointment_duration_minutes} minuti, ma varia in base al servizio scelto.` },
@@ -403,7 +403,7 @@ export default function PublicBooking() {
       {/* About */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-3xl">
-          <h2 className="text-2xl font-bold mb-4">{isSalone ? 'Il nostro salone' : 'Chi sono'}</h2>
+          <h2 className="text-2xl font-bold mb-4">{isSalone ? 'La nostra attività' : 'Chi sono'}</h2>
           {isCoach ? (
             <div className="space-y-4">
               <div className="flex items-start gap-4">
@@ -630,7 +630,7 @@ export default function PublicBooking() {
       <footer className="border-t border-border py-8 px-4">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
           <p className="font-medium text-foreground mb-1">{activity.name}</p>
-          <p>© {new Date().getFullYear()} • Powered by PrenotaPro</p>
+          <p>© {new Date().getFullYear()} • Powered by Schedio</p>
         </div>
       </footer>
     </div>

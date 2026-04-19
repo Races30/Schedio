@@ -22,12 +22,12 @@ export function generateIcsFile(options: {
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
   };
 
-  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@prenotapro`;
+  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@schedio`;
 
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//PrenotaPro//Booking//IT',
+    'PRODID:-//Schedio//Booking//IT',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

@@ -69,14 +69,14 @@ export default function Landing() {
               <span className="text-primary">senza complicazioni</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Calendario, prenotazioni, clienti e molto altro. Per saloni e personal trainer. Basta WhatsApp e agende cartacee.
+              Calendario, prenotazioni, clienti e molto altro. Per barbieri/parrucchieri e personal trainer. Basta WhatsApp e agende cartacee.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button variant="hero" size="lg" onClick={() => navigate('/register')} className="text-base">
-                <Scissors className="w-5 h-5" /> Per Saloni
+                <Scissors className="w-5 h-5" /> Per Barbieri/Parrucchieri
               </Button>
               <Button variant="outline" size="lg" onClick={() => navigate('/register')} className="text-base">
-                <Dumbbell className="w-5 h-5" /> Per Coach
+                <Dumbbell className="w-5 h-5" /> Per Personal Trainer
               </Button>
             </div>
           </motion.div>
@@ -90,11 +90,11 @@ export default function Landing() {
           <div className="flex justify-center gap-2 mb-10">
             <button onClick={() => setActiveTab('salone')}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'salone' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-              <Scissors className="w-4 h-4 inline mr-2" />Salone
+              <Scissors className="w-4 h-4 inline mr-2" />Barbiere/Parrucchiere
             </button>
             <button onClick={() => setActiveTab('coach')}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'coach' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-              <Dumbbell className="w-4 h-4 inline mr-2" />Coach
+              <Dumbbell className="w-4 h-4 inline mr-2" />Personal Trainer
             </button>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
@@ -181,7 +181,7 @@ export default function Landing() {
 
       <footer className="border-t border-border py-8 px-4">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
-          © 2026 PrenotaPro. Tutti i diritti riservati.
+          © 2026 Schedio. Tutti i diritti riservati.
         </div>
       </footer>
     </div>

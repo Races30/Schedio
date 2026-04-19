@@ -131,7 +131,7 @@ export default function Register() {
         <div className="glass-card p-8">
           <div className="flex items-center gap-3 mb-1">
             <CategoryIcon className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-bold">{step === 0 ? 'Cosa gestisci?' : isSalone ? 'Crea il tuo salone' : 'Crea il tuo profilo coach'}</h1>
+            <h1 className="text-2xl font-bold">{step === 0 ? 'Cosa gestisci?' : isSalone ? 'Crea il tuo profilo Barbiere/Parrucchiere' : 'Crea il tuo profilo Personal Trainer'}</h1>
           </div>
           <p className="text-muted-foreground mb-6">Passo {step + 1} di {totalSteps}</p>
 
@@ -148,14 +148,14 @@ export default function Register() {
                 className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'salone' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Scissors className="w-6 h-6 text-primary" /></div>
-                  <div><div className="font-semibold text-lg">Salone</div><div className="text-sm text-muted-foreground">Barbiere, parrucchiere, centro estetico</div></div>
+                  <div><div className="font-semibold text-lg">Barbiere/Parrucchiere</div><div className="text-sm text-muted-foreground">Taglio, piega, barba, centro estetico</div></div>
                 </div>
               </button>
               <button onClick={() => { setCategory('coach'); setDefaultDuration(60); setHostWorksInSalon(false); }}
                 className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'coach' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Dumbbell className="w-6 h-6 text-primary" /></div>
-                  <div><div className="font-semibold text-lg">Coach / Personal Trainer</div><div className="text-sm text-muted-foreground">Sessioni, pacchetti, progressi clienti</div></div>
+                  <div><div className="font-semibold text-lg">Personal Trainer</div><div className="text-sm text-muted-foreground">Sessioni, pacchetti, progressi clienti</div></div>
                 </div>
               </button>
               <Button onClick={() => setStep(1)} className="w-full" variant="hero">
@@ -168,7 +168,7 @@ export default function Register() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <Label>{isSalone ? 'Nome salone *' : 'Nome attività *'}</Label>
+                <Label>{isSalone ? 'Nome attività *' : 'Nome attività *'}</Label>
                 <Input value={activityName} onChange={e => setActivityName(e.target.value)} placeholder={isSalone ? 'es. Barber Shop Roma' : 'es. FitCoach Milano'} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -211,7 +211,7 @@ export default function Register() {
                   <Input type="number" value={defaultDuration} onChange={e => setDefaultDuration(Number(e.target.value))} min={5} max={240} step={5} />
                 </div>
                 <div>
-                  <Label>Buffer tra {isSalone ? 'appuntamenti' : 'sessioni'} (min)</Label>
+                  <Label>Buffer tra {isSalone ? 'servizi' : 'sessioni'} (min)</Label>
                   <Input type="number" value={bufferMinutes} onChange={e => setBufferMinutes(Number(e.target.value))} min={0} max={60} step={5} />
                 </div>
               </div>
@@ -224,10 +224,10 @@ export default function Register() {
               </div>
               {isSalone && (
                 <div className="rounded-lg border border-border p-4 space-y-2">
-                  <Label className="text-base">Lavori anche tu nel salone?</Label>
+                  <Label className="text-base">Lavori anche tu in prima persona?</Label>
                   <p className="text-sm text-muted-foreground">Se sì, avrai un profilo operatore e potrai ricevere prenotazioni.</p>
                   <div className="flex gap-2">
-                    <Button type="button" variant={hostWorksInSalon ? 'default' : 'outline'} className="flex-1" onClick={() => setHostWorksInSalon(true)}>Sì, opero in salone</Button>
+                    <Button type="button" variant={hostWorksInSalon ? 'default' : 'outline'} className="flex-1" onClick={() => setHostWorksInSalon(true)}>Sì, opero in prima persona</Button>
                     <Button type="button" variant={!hostWorksInSalon ? 'default' : 'outline'} className="flex-1" onClick={() => setHostWorksInSalon(false)}>No, solo gestione</Button>
                   </div>
                 </div>
