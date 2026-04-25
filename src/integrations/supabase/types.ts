@@ -680,6 +680,16 @@ export type Database = {
           },
         ]
       }
+      // Added dummy definitions for new tables to prevent TS errors before running 'supabase gen types'
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      exercises: { Row: any, Insert: any, Update: any, Relationships: any }
+      exercise_progress: { Row: any, Insert: any, Update: any, Relationships: any }
+      sessions: { Row: any, Insert: any, Update: any, Relationships: any }
+      session_exercises: { Row: any, Insert: any, Update: any, Relationships: any }
+      session_feedback: { Row: any, Insert: any, Update: any, Relationships: any }
+      workout_plans: { Row: any, Insert: any, Update: any, Relationships: any }
+      workout_completions: { Row: any, Insert: any, Update: any, Relationships: any }
+      /* eslint-enable @typescript-eslint/no-explicit-any */
     }
     Views: {
       [_ in never]: never

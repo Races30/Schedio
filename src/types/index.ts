@@ -166,3 +166,57 @@ export interface ProgressEntry {
   notes: string | null;
   created_at: string;
 }
+
+export type MeasureType = 'ripetizioni' | 'secondi' | 'kg' | 'metri';
+
+export const MEASURE_UNIT: Record<MeasureType, string> = {
+  ripetizioni: 'rip',
+  secondi: 'sec',
+  kg: 'kg',
+  metri: 'm',
+};
+
+export interface Exercise {
+  id: string;
+  activity_id: string;
+  name: string;
+  measure_type: MeasureType;
+  muscles: string[];
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExerciseProgress {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  exercise_id: string;
+  appointment_id: string | null;
+  value: number;
+  measure_type: MeasureType;
+  notes: string | null;
+  recorded_at: string;
+  created_at: string;
+  exercise?: Exercise;
+}
+
+export interface WorkoutPlan {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  name: string;
+  exercises: unknown[];
+  trainer_notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkoutCompletion {
+  id: string;
+  workout_plan_id: string;
+  client_id: string;
+  completed_at: string;
+  created_at: string;
+}

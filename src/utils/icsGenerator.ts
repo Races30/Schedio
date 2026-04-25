@@ -18,11 +18,10 @@ export function generateIcsFile(options: {
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
   const fmt = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   };
 
-  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@schedio`;
+  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@schedio.it`;
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -30,14 +29,17 @@ export function generateIcsFile(options: {
     'PRODID:-//Schedio//Booking//IT',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    'X-WR-CALNAME:Appuntamenti Schedio',
     'BEGIN:VEVENT',
     `UID:${uid}`,
+    `DTSTAMP:${fmt(new Date())}`,
     `DTSTART:${fmt(start)}`,
     `DTEND:${fmt(end)}`,
     `SUMMARY:${title}`,
     ...(description ? [`DESCRIPTION:${description.replace(/\n/g, '\\n')}`] : []),
     ...(location ? [`LOCATION:${location}`] : []),
-    `STATUS:CONFIRMED`,
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
     'END:VEVENT',
     'END:VCALENDAR',
   ];

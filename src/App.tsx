@@ -16,6 +16,9 @@ import EmployeesPage from "./pages/EmployeesPage";
 import PackagesPage from "./pages/PackagesPage";
 import PublicBooking from "./pages/PublicBooking";
 import EmployeePage from "./pages/EmployeePage";
+import ExercisesPage from "./pages/ExercisesPage";
+import ClientDashboard from "./pages/ClientDashboard";
+import ClientSetupPage from "./pages/ClientSetupPage";
 import AppLayout from "./components/layout/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -29,18 +32,33 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* Public */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/setup-account" element={<ClientSetupPage />} />
+
+            {/* Client dashboard (no AppLayout — has its own header) */}
+            <Route path="/client-dashboard" element={<ClientDashboard />} />
+
+            {/* Trainer app (AppLayout sidebar) */}
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/services" element={<ServicesPage />} />
-              <Route path="/employees" element={<EmployeesPage />} />
-              <Route path="/packages" element={<PackagesPage />} />
+              <Route path="/dashboard"  element={<Dashboard />} />
+              <Route path="/calendar"   element={<CalendarPage />} />
+              <Route path="/clients"    element={<ClientsPage />} />
+              <Route path="/exercises"  element={<ExercisesPage />} />
+              <Route path="/settings"   element={<SettingsPage />} />
+
+              {/* Salon — kept in code, hidden from nav via SHOW_SALON=false */}
+              <Route path="/services"   element={<ServicesPage />} />
+              <Route path="/employees"  element={<EmployeesPage />} />
+
+              {/* Packages — legacy mode, accessible via direct URL only */}
+              <Route path="/packages"          element={<PackagesPage />} />
+              <Route path="/settings/packages" element={<PackagesPage />} />
             </Route>
+
+            {/* Public booking / employee pages */}
             <Route path="/:slug/:slugAndToken" element={<EmployeePage />} />
             <Route path="/:slug" element={<PublicBooking />} />
             <Route path="*" element={<NotFound />} />

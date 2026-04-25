@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, AlertTriangle, Dumbbell, UserX } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, Dumbbell, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,11 +11,13 @@ import { Appointment, Client, Employee, Package as PackageType } from '@/types';
 import { motion } from 'framer-motion';
 import { filterBookableEmployees, employeeDisplayLabel } from '@/utils/salonEmployees';
 import { RetentionAlerts } from '@/components/dashboard/RetentionAlerts';
+import { CompleteSessionDialog } from '@/components/coach/CompleteSessionDialog';
 
 export default function Dashboard() {
   const { activity } = useAuth();
   const navigate = useNavigate();
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
+  const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const today = new Date().toISOString().split('T')[0];
 
   const isSalone = activity?.category === 'salone';
@@ -192,6 +194,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               {todayFiltered.map(a => {
                 const emp = getEmp(a.employee_id);
+                const canComplete = isCoach && a.status === 'confirmed';
                 return (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                     <div className="w-1 h-10 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
@@ -202,7 +205,18 @@ export default function Dashboard() {
                         {emp && <span> • {emp.name}</span>}
                       </div>
                     </div>
-                    <span className={`status-badge status-${a.status}`}>{statusLabel(a.status)}</span>
+                    {canComplete ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 flex-shrink-0"
+                        onClick={() => setCompleteAppt(a)}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Completa
+                      </Button>
+                    ) : (
+                      <span className={`status-badge status-${a.status}`}>{statusLabel(a.status)}</span>
+                    )}
                   </div>
                 );
               })}
@@ -292,6 +306,19 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Complete session dialog */}
+      {completeAppt && activity && (
+        <CompleteSessionDialog
+          open={!!completeAppt}
+          onClose={() => setCompleteAppt(null)}
+          appointmentId={completeAppt.id}
+          clientId={completeAppt.client_id || ''}
+          clientName={completeAppt.client?.name || completeAppt.client_name || 'Cliente'}
+          activityId={activity.id}
+          sessionDate={completeAppt.date}
+        />
+      )}
     </div>
   );
 }

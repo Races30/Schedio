@@ -67,6 +67,7 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
   // column selection logic triggers "Type instantiation is excessively deep" errors.
   const getClientSafely = async (filterCol: string, filterVal: string): Promise<Partial<ClientRow> | null> => {
     // 1. Try with all columns (Unified CRM)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const crmQuery = supabase.from('clients').select('id, name, phone, email, first_name, last_name, notes, important_notes, email_normalized, phone_normalized') as any;
     const crmResult = await crmQuery
       .eq('activity_id', activityId)
@@ -77,6 +78,7 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
     if (crmResult.error && (crmResult.error.code === '42703' || crmResult.error.message?.includes('column'))) {
       // 2. Fallback to basic columns if CRM columns don't exist
       const fallbackCol = filterCol.replace('_normalized', '');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fallbackQuery = supabase.from('clients').select('id, name, phone, email, notes') as any;
       const fallbackResult = await fallbackQuery
         .eq('activity_id', activityId)
@@ -93,6 +95,7 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
 
   const findByName = async (): Promise<Partial<ClientRow> | null> => {
     if (!fullNameNormalized) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const crmQuery = supabase.from('clients').select('id, name, phone, email, first_name, last_name, notes, important_notes, full_name_normalized') as any;
     const crmResult = await crmQuery
       .eq('activity_id', activityId)
@@ -100,6 +103,7 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
       .limit(2);
 
     if (crmResult.error && (crmResult.error.code === '42703' || crmResult.error.message?.includes('column'))) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fallbackQuery = supabase.from('clients').select('id, name, phone, email, notes') as any;
       const fallbackResult = await fallbackQuery
         .eq('activity_id', activityId)
@@ -198,6 +202,7 @@ export async function findOrCreateClient(input: ClientMatchInput): Promise<strin
 }
 
 export async function refreshClientMetrics(clientId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result = await (supabase.rpc as any)('recompute_client_metrics', { p_client_id: clientId });
   return result;
 }
@@ -210,6 +215,7 @@ export async function findActivePackage(clientId: string, activityId: string) {
     .eq('activity_id', activityId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .limit(1) as any;
     
   const { data } = await query.maybeSingle();
@@ -221,6 +227,7 @@ export async function decrementPackageSession(packageId: string) {
     .from('packages')
     .select('used_sessions, total_sessions')
     .eq('id', packageId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .single() as any);
 
   if (!pkg) return;

@@ -8,10 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler } from 'lucide-react';
-import { Client, Appointment, Package as PackageType, ProgressEntry } from '@/types';
+import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy } from 'lucide-react';
+import { Client, Appointment, Package as PackageType, ProgressEntry, ExerciseProgress, MEASURE_UNIT } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatTime } from '@/utils/dateHelpers';
+import { CompleteSessionDialog } from '@/components/coach/CompleteSessionDialog';
+import { ProgressIndicator } from '@/components/coach/ProgressIndicator';
+import { MuscleSelector } from '@/components/coach/MuscleSelector';
 
 const OBJECTIVES = ['Dimagrimento', 'Aumento massa', 'Tonificazione', 'Postura', 'Performance', 'Recupero forma', 'Mobilità', 'Preparazione atletica'];
 const LEVELS = ['Principiante', 'Intermedio', 'Avanzato', 'Esperto'];
@@ -148,30 +151,35 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
   open: boolean; onClose: () => void; client: Client | null; activityId: string; isCoach?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState(client?.name || '');
-  const [phone, setPhone] = useState(client?.phone || '');
-  const [email, setEmail] = useState(client?.email || '');
-  const [notes, setNotes] = useState(client?.notes || '');
+  const [name, setName]               = useState(client?.name || '');
+  const [phone, setPhone]             = useState(client?.phone || '');
+  const [email, setEmail]             = useState(client?.email || '');
+  const [notes, setNotes]             = useState(client?.notes || '');
   const [importantNotes, setImportantNotes] = useState(client?.important_notes || '');
-  const [objective, setObjective] = useState(client?.objective || '');
-  const [level, setLevel] = useState(client?.level || '');
-  const [frequency, setFrequency] = useState(client?.frequency || '');
-  const [loading, setLoading] = useState(false);
+  const [objective, setObjective]     = useState(client?.objective || '');
+  const [goal, setGoal]               = useState((client as Client & { goal?: string })?.goal || '');
+  const [targetArea, setTargetArea]   = useState((client as Client & { target_area?: string })?.target_area || '');
+  const [targetMuscles, setTargetMuscles] = useState<string[]>([]);
+  const [level, setLevel]             = useState(client?.level || '');
+  const [frequency, setFrequency]     = useState(client?.frequency || '');
+  const [loading, setLoading]         = useState(false);
+  const [inviteLink, setInviteLink]   = useState<string | null>(null);
 
-  useState(() => {
-    setName(client?.name || ''); setPhone(client?.phone || ''); setEmail(client?.email || '');
-    setNotes(client?.notes || ''); setObjective(client?.objective || '');
-    setLevel(client?.level || ''); setFrequency(client?.frequency || '');
-    setImportantNotes(client?.important_notes || '');
-  });
+  const normalizePhone = (v: string) => v.trim().replace(/[^\d+]/g, '') || null;
+  const normalizeEmail = (v: string) => v.trim().toLowerCase() || null;
 
-  const normalizePhone = (value: string) => value.trim().replace(/[^\d+]/g, '') || null;
-  const normalizeEmail = (value: string) => value.trim().toLowerCase() || null;
+  const generateToken = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let t = ''; for (let i = 0; i < 24; i++) t += chars[Math.floor(Math.random() * chars.length)];
+    return t;
+  };
 
   const save = async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
     setLoading(true);
     try {
+      const inviteToken = !client ? generateToken() : undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
         activity_id: activityId,
         name: name.trim(),
@@ -186,43 +194,34 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
         important_notes: importantNotes || null,
         ...(isCoach ? {
           objective: objective || null,
+          goal: goal || null,
+          target_area: targetArea || null,
+          target_muscles: targetMuscles,
           level: level || null,
           frequency: frequency || null,
           training_frequency: frequency || null,
+          ...(inviteToken ? { invite_token: inviteToken, invite_sent: false } : {}),
         } : {})
       };
-      
+      let savedId = client?.id;
       if (client) {
-        // Safe update: try all columns, then fall back if needed
         const { error } = await supabase.from('clients').update(payload).eq('id', client.id);
-        if (error && (error.code === '42703' || error.message?.includes('column'))) {
-          const basicPayload = {
-            activity_id: activityId,
-            name: name.trim(),
-            phone: phone || null,
-            email: email || null,
-            notes: notes || null,
-          };
-          await supabase.from('clients').update(basicPayload).eq('id', client.id);
-        }
+        if (error) throw error;
         toast.success('Cliente aggiornato');
       } else {
-        // Safe insert: try all columns, then fall back if needed
-        const { error } = await supabase.from('clients').insert(payload);
-        if (error && (error.code === '42703' || error.message?.includes('column'))) {
-          const basicPayload = {
-            activity_id: activityId,
-            name: name.trim(),
-            phone: phone || null,
-            email: email || null,
-            notes: notes || null,
-          };
-          await supabase.from('clients').insert(basicPayload);
-        }
+        const { data, error } = await supabase.from('clients').insert(payload).select('id').single();
+        if (error) throw error;
+        savedId = data?.id;
         toast.success('Cliente creato');
+        // Show invite link
+        if (inviteToken && email) {
+          const link = `${window.location.origin}/setup-account?token=${inviteToken}`;
+          setInviteLink(link);
+        }
       }
+      void savedId;
       queryClient.invalidateQueries({ queryKey: ['clients'] });
-      onClose();
+      if (!inviteLink) onClose();
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }
   };
 
@@ -230,23 +229,57 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
     if (!client) return;
     setLoading(true);
     try {
-      await supabase.from('clients').delete().eq('id', client.id);
+      const { error } = await supabase.from('clients').delete().eq('id', client.id);
+      if (error) throw error;
       toast.success('Cliente eliminato');
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onClose();
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }
   };
 
+  // Invite link confirmation screen
+  if (inviteLink) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-500" /> Cliente creato!</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Invia questo link al cliente per permettergli di creare il suo account:
+            </p>
+            <div className="bg-muted rounded-lg p-3 break-all text-xs font-mono">{inviteLink}</div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success('Link copiato!'); }}
+            >
+              <Copy className="w-4 h-4 mr-2" /> Copia link
+            </Button>
+            <Button variant="hero" className="w-full" onClick={onClose}>Chiudi</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{client ? 'Modifica cliente' : 'Nuovo cliente'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div><Label>Nome *</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome e cognome" /></div>
+          <div><Label>Nome e cognome *</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="es. Mario Rossi" /></div>
           <div><Label>Telefono</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 123 456 7890" /></div>
-          <div><Label>Email</Label><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" /></div>
+          <div>
+            <Label>Email{!client && isCoach ? ' (per link invito)' : ''}</Label>
+            <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" />
+          </div>
+
           {isCoach && (
             <>
+              <div>
+                <Label>Obiettivo finale</Label>
+                <Textarea value={goal} onChange={e => setGoal(e.target.value)} placeholder="Descrivi l'obiettivo del cliente in modo libero..." rows={2} />
+              </div>
               <div>
                 <Label>Obiettivo</Label>
                 <Select value={objective} onValueChange={setObjective}>
@@ -254,6 +287,23 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
                   <SelectContent>{OBJECTIVES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Parte del corpo da allenare</Label>
+                <Select value={targetArea} onValueChange={setTargetArea}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona area" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upper">Parte alta</SelectItem>
+                    <SelectItem value="lower">Parte bassa</SelectItem>
+                    <SelectItem value="full">Tutto il corpo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {targetArea && (
+                <div>
+                  <Label className="mb-2 block">Muscoli target <span className="text-xs text-muted-foreground">(opzionale)</span></Label>
+                  <MuscleSelector selected={targetMuscles} onChange={setTargetMuscles} />
+                </div>
+              )}
               <div>
                 <Label>Livello</Label>
                 <Select value={level} onValueChange={setLevel}>
@@ -269,7 +319,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
           <div className="flex gap-2">
             {client && <Button variant="destructive" onClick={deleteClient} disabled={loading}>Elimina</Button>}
             <Button variant="hero" onClick={save} disabled={loading} className="flex-1">
-              {loading ? 'Salvataggio...' : client ? 'Aggiorna' : 'Crea'}
+              {loading ? 'Salvataggio...' : client ? 'Aggiorna' : 'Crea e genera link invito'}
             </Button>
           </div>
         </div>
@@ -283,8 +333,10 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
   client: Client; onClose: () => void; activityId: string; isCoach?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'info' | 'progress'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'progress' | 'exercises'>('info');
   const [showProgressForm, setShowProgressForm] = useState(false);
+  const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const { activity } = useAuth();
 
   const { data: appointments = [] } = useQuery({
     queryKey: ['client-appointments', client.id],
@@ -312,6 +364,32 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
     enabled: !!isCoach,
   });
 
+  // Exercise-based progress for coach — grouped by exercise
+  const { data: exerciseProgressRaw = [] } = useQuery({
+    queryKey: ['exercise-progress', client.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('exercise_progress')
+        .select('*, exercise:exercises(name, measure_type)')
+        .eq('client_id', client.id)
+        .order('recorded_at', { ascending: false });
+      return (data || []) as ExerciseProgress[];
+    },
+    enabled: !!isCoach,
+  });
+
+  // Group by exercise_id, sorted by most recent
+  const exerciseGroups = isCoach
+    ? Object.values(
+        exerciseProgressRaw.reduce<Record<string, ExerciseProgress[]>>((acc, ep) => {
+          if (!acc[ep.exercise_id]) acc[ep.exercise_id] = [];
+          acc[ep.exercise_id].push(ep);
+          return acc;
+        }, {})
+      ).sort((a, b) => new Date(b[0].recorded_at).getTime() - new Date(a[0].recorded_at).getTime())
+    : [];
+
+
   const activePackage = clientPackages.find(p => p.status === 'active');
   const futureAppointments = appointments.filter((a) => new Date(a.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date));
   const pastAppointments = appointments.filter((a) => new Date(a.date) < new Date()).sort((a, b) => b.date.localeCompare(a.date));
@@ -333,11 +411,13 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
 
         {/* Tabs for coach */}
         {isCoach && (
-          <div className="flex gap-2 border-b border-border pb-2">
+          <div className="flex gap-1 border-b border-border pb-2">
             <button onClick={() => setActiveTab('info')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'info' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Info & Storico</button>
-            <button onClick={() => setActiveTab('progress')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'progress' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
-              <TrendingUp className="w-3.5 h-3.5 inline mr-1" />Progressi
+            <button onClick={() => setActiveTab('exercises')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'exercises' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+              <TrendingUp className="w-3.5 h-3.5" />Esercizi
+              {exerciseProgressRaw.length > 0 && <span className="ml-1 bg-primary text-primary-foreground text-[10px] px-1.5 rounded-full">{exerciseProgressRaw.length}</span>}
             </button>
+            <button onClick={() => setActiveTab('progress')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'progress' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Misure</button>
           </div>
         )}
 
@@ -411,18 +491,29 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
                 <p className="text-sm text-muted-foreground">Nessun appuntamento passato</p>
               ) : (
                 <div className="space-y-2">
-                  {pastAppointments.map(a => (
-                    <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
-                      <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{a.service?.name || (isCoach ? 'Sessione' : 'Appuntamento')}</div>
-                        <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
+                  {pastAppointments.map(a => {
+                    const canComplete = isCoach && a.status === 'confirmed';
+                    return (
+                      <div key={a.id} className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+                        <div className="w-1 h-8 rounded-full" style={{ backgroundColor: a.color || a.service?.color || '#3b82f6' }} />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{a.service?.name || (isCoach ? 'Sessione' : 'Appuntamento')}</div>
+                          <div className="text-xs text-muted-foreground">{formatDate(a.date)} • {formatTime(a.start_time)}</div>
+                        </div>
+                        {canComplete ? (
+                          <Button size="sm" variant="outline"
+                            className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 text-xs h-7"
+                            onClick={() => setCompleteAppt(a)}>
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Completa
+                          </Button>
+                        ) : (
+                          <span className={`status-badge status-${a.status}`}>
+                            {a.status === 'confirmed' ? 'Conf.' : a.status === 'completed' ? 'Fatto' : a.status === 'cancelled' ? 'Ann.' : 'Attesa'}
+                          </span>
+                        )}
                       </div>
-                      <span className={`status-badge status-${a.status}`}>
-                        {a.status === 'confirmed' ? 'Conf.' : a.status === 'completed' ? 'Fatto' : a.status === 'cancelled' ? 'Ann.' : 'Attesa'}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -490,6 +581,80 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               </div>
             )}
           </div>
+        )}
+
+        {/* Exercises progress tab (coach only) */}
+        {activeTab === 'exercises' && isCoach && (
+          <div className="space-y-4">
+            {exerciseGroups.length === 0 ? (
+              <div className="text-center py-10">
+                <TrendingUp className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Nessun progresso registrato.</p>
+                <p className="text-xs text-muted-foreground mt-1">Completa una sessione per iniziare il tracking.</p>
+              </div>
+            ) : (
+              exerciseGroups.map(entries => {
+                const ex = entries[0].exercise;
+                const exName = ex?.name ?? 'Esercizio';
+                const measureType = entries[0].measure_type;
+                const unit = MEASURE_UNIT[measureType as keyof typeof MEASURE_UNIT] ?? '';
+                return (
+                  <div key={entries[0].exercise_id} className="border border-border rounded-xl p-4 space-y-3">
+                    {/* Exercise header with last vs previous comparison */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-sm">{exName}</div>
+                        <div className="text-xs text-muted-foreground capitalize">{measureType}</div>
+                      </div>
+                      {/* Best vs previous */}
+                      <div className="text-right">
+                        <div className="text-lg font-bold">{entries[0].value} <span className="text-sm font-normal text-muted-foreground">{unit}</span></div>
+                        <ProgressIndicator
+                          current={entries[0].value}
+                          previous={entries[1]?.value ?? null}
+                          measureType={measureType}
+                          showDiff={true}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* History list */}
+                    <div className="space-y-1.5">
+                      {entries.map((ep, idx) => (
+                        <div key={ep.id} className="flex items-center gap-3 text-xs py-1.5 border-b border-border/50 last:border-0">
+                          <span className="text-muted-foreground w-20 flex-shrink-0">
+                            {new Date(ep.recorded_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                          </span>
+                          <span className="font-semibold">{ep.value} {unit}</span>
+                          <ProgressIndicator
+                            current={ep.value}
+                            previous={entries[idx + 1]?.value ?? null}
+                            measureType={measureType}
+                            showDiff={true}
+                            size="sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* CompleteSession dialog (opened from appointment history) */}
+        {completeAppt && activity && (
+          <CompleteSessionDialog
+            open={!!completeAppt}
+            onClose={() => setCompleteAppt(null)}
+            appointmentId={completeAppt.id}
+            clientId={client.id}
+            clientName={client.name}
+            activityId={activityId}
+            sessionDate={completeAppt.date}
+          />
         )}
       </DialogContent>
     </Dialog>

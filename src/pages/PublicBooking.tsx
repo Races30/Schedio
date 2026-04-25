@@ -18,6 +18,26 @@ import { Calendar, Clock, CheckCircle2, ChevronLeft, Shield, Zap, Award, Chevron
 
 const SLOT_INTERVAL = 15;
 
+// Typed payload for appointment insertion
+interface AppointmentInsertPayload {
+  activity_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  buffer_time_minutes: number;
+  status: string;
+  client_id: string | null;
+  client_name: string;
+  client_phone: string | null;
+  client_email: string | null;
+  notes: string | null;
+  service_id: string | null;
+  employee_id: string | null;
+  color: string | null;
+  package_id?: string | null;
+}
+
 export default function PublicBooking() {
   const { slug } = useParams<{ slug: string }>();
   const bookingRef = useRef<HTMLDivElement>(null);
@@ -242,7 +262,7 @@ export default function PublicBooking() {
         }
       }
 
-      const appointmentPayload: any = {
+      const appointmentPayload: AppointmentInsertPayload = {
         activity_id: activity.id,
         date: selectedDate,
         start_time: selectedTime,
@@ -272,10 +292,11 @@ export default function PublicBooking() {
 
       if (error) throw error;
       setBooked(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Booking error:', err);
-      const msg = err.message || 'Errore sconosciuto';
-      const code = err.code || '';
+      const errObj = err as { message?: string; code?: string };
+      const msg = errObj.message || 'Errore sconosciuto';
+      const code = errObj.code || '';
       toast.error(`Errore prenotazione: ${msg} ${code ? `(${code})` : ''}`);
     } finally {
       setLoading(false);
@@ -287,11 +308,11 @@ export default function PublicBooking() {
     const serviceName = selectedService?.name || (isSalone ? 'Appuntamento' : 'Sessione');
     generateIcsFile({
       title: `${serviceName} - ${activity.name}`,
-      description: `Prenotazione presso ${activity.name}${notes ? `\nNote: ${notes}` : ''}`,
+      description: `Prenotazione per: ${clientName || 'Cliente'}\nPresso: ${activity.name}${notes ? `\nNote: ${notes}` : ''}`,
       startDate: selectedDate,
       startTime: selectedTime,
       durationMinutes: duration,
-      location: activity.name,
+      location: activity.address || activity.name,
     });
   };
 
