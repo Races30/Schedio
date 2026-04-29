@@ -55,7 +55,7 @@ export default function ClientDashboard() {
   });
 
   // Last workout completion
-  const { data: lastCompletion } = useQuery({
+  const { data: lastCompletion } = useQuery<{ completed_at: string } | null>({
     queryKey: ['client-last-completion', client?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -65,7 +65,7 @@ export default function ClientDashboard() {
         .order('completed_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data;
+      return data as { completed_at: string } | null;
     },
     enabled: !!client && !!workoutPlan,
   });

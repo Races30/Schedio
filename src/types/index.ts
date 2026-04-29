@@ -22,6 +22,7 @@ export interface Activity {
   updated_at: string;
   max_advance_booking_days?: number;
   min_booking_notice_hours?: number;
+  address?: string | null;
 }
 
 export interface Client {
@@ -37,6 +38,7 @@ export interface Client {
   email_normalized?: string | null;
   phone: string | null;
   email: string | null;
+  age?: number | null;
   notes: string | null;
   important_notes?: string | null;
   preferences: Record<string, unknown> | null;

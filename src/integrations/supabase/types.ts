@@ -281,6 +281,10 @@ export type Database = {
           training_frequency: string | null
           updated_at: string
           visit_frequency_days: number | null
+          user_id: string | null
+          invite_token: string | null
+          invite_sent: boolean | null
+          invite_accepted: boolean | null
         }
         Insert: {
           activity_id: string
@@ -317,6 +321,9 @@ export type Database = {
           training_frequency?: string | null
           updated_at?: string
           visit_frequency_days?: number | null
+          user_id?: string | null
+          invite_token?: string | null
+          invite_accepted?: boolean | null
         }
         Update: {
           activity_id?: string
@@ -353,6 +360,9 @@ export type Database = {
           training_frequency?: string | null
           updated_at?: string
           visit_frequency_days?: number | null
+          user_id?: string | null
+          invite_token?: string | null
+          invite_accepted?: boolean | null
         }
         Relationships: [
           {

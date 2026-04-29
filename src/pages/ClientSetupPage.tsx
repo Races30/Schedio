@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,22 +28,31 @@ export default function ClientSetupPage() {
   const [clientName, setClientName] = useState('');
 
   // Verify token on mount and pre-fill email
-  useState(async () => {
-    if (!inviteToken) return;
-    const { data } = await supabase
-      .from('clients')
-      .select('name, email, invite_accepted')
-      .eq('invite_token', inviteToken)
-      .maybeSingle();
-    if (!data) return;
-    if (data.invite_accepted) {
-      toast.info('Questo link è già stato usato. Accedi normalmente.');
-      navigate('/login');
-      return;
-    }
-    setClientName(data.name ?? '');
-    if (data.email) setEmail(data.email);
-  });
+  useEffect(() => {
+    const verifyToken = async () => {
+      if (!inviteToken) return;
+      const { data, error } = await supabase
+        .from('clients')
+        .select('name, email, invite_accepted')
+        .eq('invite_token', inviteToken)
+        .maybeSingle();
+      
+      if (error || !data) {
+        toast.error('Link di invito non valido o scaduto.');
+        return;
+      }
+
+      if (data.invite_accepted) {
+        toast.info('Questo link è già stato usato. Accedi normalmente.');
+        navigate('/login');
+        return;
+      }
+      setClientName(data.name ?? '');
+      if (data.email) setEmail(data.email);
+    };
+    
+    verifyToken();
+  }, [inviteToken, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

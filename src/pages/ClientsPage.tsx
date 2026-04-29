@@ -151,6 +151,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
   open: boolean; onClose: () => void; client: Client | null; activityId: string; isCoach?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { activity } = useAuth();
   const [name, setName]               = useState(client?.name || '');
   const [phone, setPhone]             = useState(client?.phone || '');
   const [email, setEmail]             = useState(client?.email || '');
@@ -168,11 +169,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
   const normalizePhone = (v: string) => v.trim().replace(/[^\d+]/g, '') || null;
   const normalizeEmail = (v: string) => v.trim().toLowerCase() || null;
 
-  const generateToken = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let t = ''; for (let i = 0; i < 24; i++) t += chars[Math.floor(Math.random() * chars.length)];
-    return t;
-  };
+  const generateToken = () => crypto.randomUUID();
 
   const save = async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
@@ -213,8 +210,24 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
         if (error) throw error;
         savedId = data?.id;
         toast.success('Cliente creato');
-        // Show invite link
+        // Send invite email via Edge Function
         if (inviteToken && email) {
+          const { error: funcError } = await supabase.functions.invoke('send-client-invite', {
+            body: {
+              email: email.trim().toLowerCase(),
+              clientName: name.trim(),
+              trainerName: activity?.name || 'Il tuo trainer',
+              token: inviteToken,
+            },
+          });
+
+          if (!funcError) {
+            await supabase.from('clients').update({ invite_sent: true } as any).eq('id', data.id);
+          } else {
+            console.error('Error sending invite email:', funcError);
+            toast.error("Errore nell'invio dell'email di invito");
+          }
+
           const link = `${window.location.origin}/setup-account?token=${inviteToken}`;
           setInviteLink(link);
         }
