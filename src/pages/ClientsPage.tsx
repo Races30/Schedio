@@ -225,7 +225,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
             await supabase.from('clients').update({ invite_sent: true } as any).eq('id', data.id);
           } else {
             console.error('Error sending invite email:', funcError);
-            toast.error("Errore nell'invio dell'email di invito");
+            toast.error(`Errore nell'invio dell'email: ${funcError.message || 'Errore sconosciuto'}`);
           }
 
           const link = `${window.location.origin}/setup-account?token=${inviteToken}`;
