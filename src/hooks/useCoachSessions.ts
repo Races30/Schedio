@@ -8,7 +8,8 @@
  * Each session is enriched with its proposal history (session_proposals)
  * and the client record (for trainer view).
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CoachSession, SessionProposal } from '@/types';
 
@@ -22,6 +23,48 @@ interface UseCoachSessionsOptions {
 }
 
 export function useCoachSessions({ activityId, clientId, activeOnly = false }: UseCoachSessionsOptions) {
+  const qc = useQueryClient();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    if (!activityId && !clientId) return;
+
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const filter = clientId ? `client_id=eq.${clientId}` : `activity_id=eq.${activityId}`;
+    const channelName = `sessions-${activityId || 'na'}-${clientId || 'nc'}-${Date.now()}`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sessions',
+          filter,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+          qc.invalidateQueries({ queryKey: ['coach-sessions'] });
+          qc.invalidateQueries({ queryKey: ['client-sessions'] });
+          qc.invalidateQueries({ queryKey: ['client-all-sessions'] });
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [activityId, clientId, qc]);
+
   return useQuery<CoachSession[]>({
     queryKey: ['coach-sessions', activityId, clientId, activeOnly],
     queryFn: async () => {

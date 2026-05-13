@@ -408,6 +408,7 @@ export default function ClientDashboard() {
           <WorkoutPlayer
             plan={workoutPlan}
             clientId={client.id}
+            sessionId={nextSession?.id}
             onClose={() => setWorkoutPlayerOpen(false)}
           />
         )}
@@ -473,7 +474,7 @@ interface WorkoutExercise {
 
 type PlayerPhase = 'exercise' | 'rest' | 'done' | 'feedback';
 
-function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientId: string; onClose: () => void }) {
+function WorkoutPlayer({ plan, clientId, sessionId, onClose }: { plan: WorkoutPlan; clientId: string; sessionId?: string; onClose: () => void }) {
   const qc = useQueryClient();
   const exercises: WorkoutExercise[] = (plan.exercises as unknown as WorkoutExercise[]) ?? [];
   const [currentIdx, setCurrentIdx]   = useState(0);
@@ -565,10 +566,10 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
         <div className="flex items-center justify-between p-4 border-b border-border">
           <span className="font-semibold">Feedback sessione</span>
           <button onClick={onClose} className="text-muted-foreground text-sm">✕ Chiudi</button>
-        </div>
         <div className="flex-1 p-6 max-w-md mx-auto w-full">
           <SessionFeedbackForm
             clientId={clientId}
+            sessionId={sessionId}
             onDone={onClose}
           />
         </div>

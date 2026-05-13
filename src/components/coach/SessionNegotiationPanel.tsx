@@ -350,7 +350,7 @@ function SessionCard({
         <div className="mt-2 p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center gap-2 text-xs text-emerald-700">
           <Lock className="w-3.5 h-3.5" />
           <span className="font-medium">Orario confermato e bloccato.</span>
-          {role === 'client' && (
+          {role === 'cliente' && (
             <span className="ml-auto text-muted-foreground">Per modifiche contatta il trainer.</span>
           )}
         </div>
