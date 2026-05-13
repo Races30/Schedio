@@ -566,6 +566,7 @@ function WorkoutPlayer({ plan, clientId, sessionId, onClose }: { plan: WorkoutPl
         <div className="flex items-center justify-between p-4 border-b border-border">
           <span className="font-semibold">Feedback sessione</span>
           <button onClick={onClose} className="text-muted-foreground text-sm">✕ Chiudi</button>
+        </div>
         <div className="flex-1 p-6 max-w-md mx-auto w-full">
           <SessionFeedbackForm
             clientId={clientId}
