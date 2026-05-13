@@ -62,7 +62,12 @@ export default function PackagesPage() {
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Pacchetti</h1>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">Pacchetti <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Legacy</span></h1>
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-amber-500" /> Questa sezione è nascosta e mantenuta solo per compatibilità.
+          </p>
+        </div>
         <Button onClick={() => { setEditPkg(null); setDialogOpen(true); }} variant="hero">
           <Plus className="w-4 h-4" /> Nuovo pacchetto
         </Button>

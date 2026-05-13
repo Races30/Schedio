@@ -19,8 +19,12 @@ import EmployeePage from "./pages/EmployeePage";
 import ExercisesPage from "./pages/ExercisesPage";
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientSetupPage from "./pages/ClientSetupPage";
+import ClientProgressPage from "./pages/ClientProgressPage";
 import AppLayout from "./components/layout/AppLayout";
 import NotFound from "./pages/NotFound";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import SessionsPage from "./pages/SessionsPage";
+import WorkoutPlansPage from "./pages/WorkoutPlansPage";
 
 const queryClient = new QueryClient();
 
@@ -43,18 +47,21 @@ const App = () => (
 
             {/* Trainer app (AppLayout sidebar) */}
             <Route element={<AppLayout />}>
-              <Route path="/dashboard"  element={<Dashboard />} />
-              <Route path="/calendar"   element={<CalendarPage />} />
-              <Route path="/clients"    element={<ClientsPage />} />
-              <Route path="/exercises"  element={<ExercisesPage />} />
-              <Route path="/settings"   element={<SettingsPage />} />
+              <Route path="/dashboard"   element={<Dashboard />} />
+              <Route path="/calendar"    element={<CalendarPage />} />
+              <Route path="/clients"     element={<ClientsPage />} />
+              <Route path="/exercises"   element={<ExercisesPage />} />
+              <Route path="/analytics"    element={<AnalyticsPage />} />
+              <Route path="/sessions"     element={<SessionsPage />} />
+              <Route path="/workout-plans" element={<WorkoutPlansPage />} />
+              <Route path="/settings"    element={<SettingsPage />} />
+              <Route path="/clients/:clientId/progress" element={<ClientProgressPage />} />
 
               {/* Salon — kept in code, hidden from nav via SHOW_SALON=false */}
               <Route path="/services"   element={<ServicesPage />} />
               <Route path="/employees"  element={<EmployeesPage />} />
 
               {/* Packages — legacy mode, accessible via direct URL only */}
-              <Route path="/packages"          element={<PackagesPage />} />
               <Route path="/settings/packages" element={<PackagesPage />} />
             </Route>
 

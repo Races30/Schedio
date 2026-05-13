@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, Dumbbell, CheckCircle2 } from 'lucide-react';
+import { Calendar, Users, Clock, Plus, TrendingUp, ExternalLink, UserPlus, Scissors, Contact, Package, Dumbbell, CheckCircle2, Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, Link } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +12,8 @@ import { motion } from 'framer-motion';
 import { filterBookableEmployees, employeeDisplayLabel } from '@/utils/salonEmployees';
 import { RetentionAlerts } from '@/components/dashboard/RetentionAlerts';
 import { CompleteSessionDialog } from '@/components/coach/CompleteSessionDialog';
+import { SessionNegotiationPanel } from '@/components/coach/SessionNegotiationPanel';
+import { useCoachSessions } from '@/hooks/useCoachSessions';
 
 export default function Dashboard() {
   const { activity } = useAuth();
@@ -22,6 +24,73 @@ export default function Dashboard() {
 
   const isSalone = activity?.category === 'salone';
   const isCoach = activity?.category === 'coach';
+
+  // Coach sessions (proposals) query
+  const { data: coachSessions = [] } = useCoachSessions({ activityId: isCoach ? activity?.id : null });
+
+  // Pending trainer action
+  const pendingSessions = coachSessions.filter(s => {
+    if (!['proposta', 'controproposta'].includes(s.status)) return false;
+    const lastProp = s.proposals?.[s.proposals.length - 1];
+    if (!lastProp) return s.proposed_by === 'cliente';
+    return lastProp.proposed_by === 'cliente';
+  });
+
+  // Coach analytics: exercise usage, client progress, completions
+  const { data: coachAnalytics } = useQuery({
+    queryKey: ['coach-analytics', activity?.id],
+    queryFn: async () => {
+      const [progressRes, completionsRes] = await Promise.all([
+        supabase
+          .from('exercise_progress')
+          .select('exercise_id, client_id, value, recorded_at, exercise:exercises(name)')
+          .eq('activity_id', activity!.id)
+          .order('recorded_at', { ascending: false })
+          .limit(200),
+        supabase
+          .from('workout_completions')
+          .select('client_id, completed_at')
+          .in(
+            'client_id',
+            (await supabase.from('clients').select('id').eq('activity_id', activity!.id)).data?.map(c => c.id) || []
+          )
+          .order('completed_at', { ascending: false })
+          .limit(50),
+      ]);
+
+      const progress = progressRes.data || [];
+      const completions = completionsRes.data || [];
+
+      // Top exercises by usage count
+      const exUsage: Record<string, { name: string; count: number }> = {};
+      for (const p of progress) {
+        if (!exUsage[p.exercise_id]) exUsage[p.exercise_id] = { name: (p.exercise as {name?:string})?.name ?? '?', count: 0 };
+        exUsage[p.exercise_id].count++;
+      }
+      const topExercises = Object.values(exUsage).sort((a, b) => b.count - a.count).slice(0, 5);
+
+      // Client improvement counts
+      const byClient: Record<string, Record<string, number[]>> = {};
+      for (const p of progress) {
+        if (!byClient[p.client_id]) byClient[p.client_id] = {};
+        if (!byClient[p.client_id][p.exercise_id]) byClient[p.client_id][p.exercise_id] = [];
+        byClient[p.client_id][p.exercise_id].push(p.value);
+      }
+      let improving = 0, declining = 0;
+      for (const clientExercises of Object.values(byClient)) {
+        for (const vals of Object.values(clientExercises)) {
+          if (vals.length < 2) continue;
+          if (vals[0] > vals[1]) improving++;
+          else if (vals[0] < vals[1]) declining++;
+        }
+      }
+
+      return { topExercises, improving, declining, completionsThisWeek: completions.filter(c =>
+        new Date(c.completed_at) > new Date(Date.now() - 7 * 86400000)
+      ).length };
+    },
+    enabled: isCoach && !!activity,
+  });
 
   const { data: todayAppts = [] } = useQuery({
     queryKey: ['appointments', 'today', activity?.id],
@@ -173,6 +242,96 @@ export default function Dashboard() {
 
       <RetentionAlerts />
 
+      {/* ── Coach: Proposte in attesa ── */}
+      {isCoach && coachSessions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-6 mb-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Inbox className="w-5 h-5 text-violet-600" />
+            <h2 className="text-lg font-semibold">Proposte sessione</h2>
+            {pendingSessions.length > 0 && (
+              <span className="bg-violet-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {pendingSessions.length} in attesa
+              </span>
+            )}
+          </div>
+          <SessionNegotiationPanel
+            sessions={coachSessions}
+            role="trainer"
+            emptyMessage="Nessuna proposta di sessione ricevuta."
+          />
+        </motion.div>
+      )}
+
+      {isCoach && coachSessions.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-6 mb-6 border-dashed"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Inbox className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Proposte sessione</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">Nessuna proposta di sessione ricevuta dai clienti.</p>
+        </motion.div>
+      )}
+
+      {/* ── Coach: Analytics Summary ── */}
+      {isCoach && coachAnalytics && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-6 mb-6"
+        >
+          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-violet-600" />
+            Riepilogo progressi clienti
+          </h2>
+
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600">{coachAnalytics.improving}</div>
+              <div className="text-xs text-muted-foreground">In miglioramento</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-500">{coachAnalytics.declining}</div>
+              <div className="text-xs text-muted-foreground">In calo</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-violet-600">{coachAnalytics.completionsThisWeek}</div>
+              <div className="text-xs text-muted-foreground">Allenamenti questa sett.</div>
+            </div>
+          </div>
+
+          {coachAnalytics.topExercises.length > 0 && (
+            <>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Esercizi più usati
+              </div>
+              <div className="space-y-1.5">
+                {coachAnalytics.topExercises.map((ex, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="text-xs text-muted-foreground w-4 text-right">{i + 1}.</div>
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-violet-500 rounded-full"
+                        style={{ width: `${(ex.count / coachAnalytics.topExercises[0].count) * 100}%` }}
+                      />
+                    </div>
+                    <div className="text-xs font-medium w-32 truncate">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground w-8 text-right">{ex.count}×</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map((s, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card p-4">
@@ -288,11 +447,6 @@ export default function Dashboard() {
             {isSalone && (
               <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/employees')}>
                 <Contact className="w-5 h-5 mr-2" /> Dipendenti
-              </Button>
-            )}
-            {isCoach && (
-              <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/packages')}>
-                <Package className="w-5 h-5 mr-2" /> Pacchetti
               </Button>
             )}
             <Button variant="outline" className="w-full justify-start" asChild>

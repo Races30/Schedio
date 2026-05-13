@@ -1,21 +1,39 @@
-import { useState } from 'react';
+/**
+ * ClientDashboard
+ *
+ * The client-facing dashboard. Features:
+ *  - Next session card + mini calendar
+ *  - Countdown to next session
+ *  - Active workout plan + "Start workout" button
+ *  - Exercise progress sparklines
+ *  - Session negotiation panel (proposals)
+ *  - Full guided workout player (with timer, rest phase, feedback step)
+ */
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { LogOut, Calendar, Clock, Play, TrendingUp, ChevronRight, CheckCircle2, Dumbbell } from 'lucide-react';
+import {
+  LogOut, Calendar, Clock, Play, TrendingUp, CheckCircle2, Dumbbell,
+  Inbox, ChevronRight, SkipForward,
+} from 'lucide-react';
 import { Client, ExerciseProgress, MEASURE_UNIT, WorkoutPlan } from '@/types';
 import { ProgressIndicator } from '@/components/coach/ProgressIndicator';
-import { motion } from 'framer-motion';
+import { SessionNegotiationPanel } from '@/components/coach/SessionNegotiationPanel';
+import { SessionFeedbackForm } from '@/components/coach/SessionFeedbackForm';
+import { useCoachSessions } from '@/hooks/useCoachSessions';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ClientDashboard() {
   const { clientProfile, signOut } = useAuth();
   const [workoutPlayerOpen, setWorkoutPlayerOpen] = useState(false);
-
   const client = clientProfile as Client | null;
 
-  // Next session
-  const today = new Date().toISOString().split('T')[0];
+  // All sessions for this client (negotiation + confirmed)
+  const { data: coachSessions = [] } = useCoachSessions({ clientId: client?.id });
+
+  // Next confirmed session
   const { data: sessions = [] } = useQuery({
     queryKey: ['client-sessions', client?.id],
     queryFn: async () => {
@@ -92,14 +110,46 @@ export default function ClientDashboard() {
       acc[ep.exercise_id].push(ep);
       return acc;
     }, {})
-  ).slice(0, 5); // show top 5 exercises
+  ).slice(0, 5);
+
+  // Client stats for history
+  const { data: clientStats } = useQuery({
+    queryKey: ['client-stats-history', client?.id],
+    queryFn: async () => {
+      const [sessionsRes, workoutsRes] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_id', client!.id)
+          .eq('status', 'completata'),
+        supabase
+          .from('workout_completions')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_id', client!.id)
+      ]);
+      return {
+        completedSessions: sessionsRes.count || 0,
+        completedWorkouts: workoutsRes.count || 0,
+      };
+    },
+    enabled: !!client,
+  });
 
   if (!client) return null;
 
+
   const displayName = `${client.first_name || client.name}`;
 
+  // Count sessions where the trainer has counter-proposed (awaiting client reply)
+  const awaitingClientReply = coachSessions.filter(s => {
+    if (!['proposta', 'controproposta'].includes(s.status)) return false;
+    const last = s.proposals?.[s.proposals.length - 1];
+    if (!last) return false;
+    return last.proposed_by === 'trainer';
+  }).length;
+
   return (
-    <div className="min-h-screen" style={{ '--client-primary': '#10b981', '--client-primary-light': '#d1fae5' } as React.CSSProperties}>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/40 to-background dark:from-emerald-950/10">
       {/* Header bar */}
       <header className="bg-emerald-600 text-white px-4 py-4 flex items-center justify-between">
         <div>
@@ -114,11 +164,9 @@ export default function ClientDashboard() {
 
       <div className="p-4 max-w-lg mx-auto space-y-4 pb-8">
 
-        {/* ─ Card 1: Mini calendario prossima sessione ─ */}
+        {/* ─ Card 1: Prossima sessione ─ */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm"
         >
           <div className="flex items-center gap-2 mb-3">
@@ -129,8 +177,8 @@ export default function ClientDashboard() {
             <MiniCalendar targetDate={new Date(nextSession.scheduled_at)} />
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nessuna sessione programmata.<br />
-              <span className="text-xs">Proponi una data al tuo trainer.</span>
+              Nessuna sessione confermata.<br />
+              <span className="text-xs">Proponi una data al tuo trainer qui sotto.</span>
             </p>
           )}
         </motion.div>
@@ -138,9 +186,7 @@ export default function ClientDashboard() {
         {/* ─ Card 2: Countdown ─ */}
         {nextSession && daysUntilNext !== null && (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="bg-emerald-600 text-white rounded-2xl p-5 text-center shadow-sm"
           >
             <div className="text-5xl font-extrabold mb-1">
@@ -160,12 +206,51 @@ export default function ClientDashboard() {
           </motion.div>
         )}
 
+        {/* ─ Card: Status and Goals (Relation with Trainer & Objectives) ─ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+          className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col gap-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-400">
+              Il tuo Percorso
+            </div>
+            {client.status === 'attivo' && (
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                In Attività
+              </span>
+            )}
+            {client.status !== 'attivo' && client.status && (
+              <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                {client.status}
+              </span>
+            )}
+          </div>
+          {(client.goal || (client.target_muscles && client.target_muscles.length > 0)) ? (
+            <div className="text-sm text-muted-foreground flex flex-col gap-1">
+              {client.goal && (
+                <div className="flex items-start gap-2">
+                  <strong className="text-foreground">Obiettivo:</strong> {client.goal}
+                </div>
+              )}
+              {client.target_muscles && client.target_muscles.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <strong className="text-foreground">Focus:</strong> {client.target_muscles.join(', ')}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Continua ad allenarti con il tuo trainer per definire i tuoi obiettivi specifici!
+            </div>
+          )}
+        </motion.div>
+
+
         {/* ─ Card 3: Allenamento autonomo ─ */}
         {workoutPlan && (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             className="bg-white dark:bg-card border border-emerald-200 dark:border-emerald-900 rounded-2xl p-4 shadow-sm"
           >
             <div className="flex items-center justify-between">
@@ -183,6 +268,11 @@ export default function ClientDashboard() {
                     })}
                   </div>
                 )}
+                {workoutPlan.trainer_notes && (
+                  <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 italic">
+                    "{workoutPlan.trainer_notes}"
+                  </div>
+                )}
               </div>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
@@ -194,11 +284,9 @@ export default function ClientDashboard() {
           </motion.div>
         )}
 
-        {/* ─ Card 4: Grafico progressi ─ */}
+        {/* ─ Card 4: Progressi esercizi ─ */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm"
         >
           <div className="flex items-center gap-2 mb-4">
@@ -217,8 +305,11 @@ export default function ClientDashboard() {
                 const exName = ex?.name ?? 'Esercizio';
                 const measureType = entries[0].measure_type;
                 const unit = MEASURE_UNIT[measureType as keyof typeof MEASURE_UNIT] ?? '';
-                const current = entries[0].value;
-                const previous = entries[1]?.value ?? null;
+                const sorted = [...entries].sort(
+                  (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
+                );
+                const current  = sorted[sorted.length - 1].value;
+                const previous = sorted.length > 1 ? sorted[sorted.length - 2].value : null;
 
                 return (
                   <div key={entries[0].exercise_id} className="flex items-center gap-3">
@@ -231,8 +322,8 @@ export default function ClientDashboard() {
                       </div>
                       {/* Sparkline bar */}
                       <div className="flex items-end gap-0.5 h-8 mt-1">
-                        {entries.slice(0, 8).reverse().map((ep, i) => {
-                          const vals = entries.map(e => e.value);
+                        {sorted.slice(0, 8).map((ep, i) => {
+                          const vals = sorted.map(e => e.value);
                           const min = Math.min(...vals);
                           const max = Math.max(...vals);
                           const range = max - min || 1;
@@ -240,10 +331,10 @@ export default function ClientDashboard() {
                           return (
                             <div
                               key={ep.id}
-                              className="flex-1 rounded-t"
+                              className="flex-1 rounded-t transition-all"
                               style={{
                                 height: `${pct}%`,
-                                background: i === entries.slice(0, 8).length - 1
+                                background: i === sorted.slice(0, 8).length - 1
                                   ? '#10b981'
                                   : '#d1fae5',
                               }}
@@ -266,21 +357,61 @@ export default function ClientDashboard() {
           )}
         </motion.div>
 
-        {/* ─ Propose session link ─ */}
-        <button className="w-full glass-card p-4 flex items-center justify-between text-sm font-medium hover:shadow-md transition-shadow">
-          <span>Proponi una sessione</span>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-        </button>
+        {/* ─ Card: Storico (Stats) ─ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}
+          className="grid grid-cols-2 gap-3"
+        >
+          <div className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm text-center">
+            <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Sessioni 1-a-1</div>
+            <div className="text-3xl font-bold text-emerald-600">
+              {clientStats?.completedSessions ?? 0}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Completate</div>
+          </div>
+          <div className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm text-center">
+            <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Autonomi</div>
+            <div className="text-3xl font-bold text-violet-600">
+              {clientStats?.completedWorkouts ?? 0}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Completati</div>
+          </div>
+        </motion.div>
+
+        {/* ─ Card 5: Sessioni (proposals + confirmed) ─ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Inbox className="w-4 h-4 text-emerald-600" />
+            <span className="text-sm font-semibold">Le mie sessioni</span>
+            {awaitingClientReply > 0 && (
+              <span className="bg-violet-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                Risposta richiesta
+              </span>
+            )}
+          </div>
+          <SessionNegotiationPanel
+            sessions={coachSessions}
+            role="cliente"
+            clientId={client.id}
+            activityId={client.activity_id}
+            emptyMessage="Nessuna sessione. Usa il bottone qui sopra per proporne una!"
+          />
+        </motion.div>
       </div>
 
-      {/* Workout player modal */}
-      {workoutPlayerOpen && workoutPlan && (
-        <WorkoutPlayer
-          plan={workoutPlan}
-          clientId={client.id}
-          onClose={() => setWorkoutPlayerOpen(false)}
-        />
-      )}
+      {/* Workout player */}
+      <AnimatePresence>
+        {workoutPlayerOpen && workoutPlan && (
+          <WorkoutPlayer
+            plan={workoutPlan}
+            clientId={client.id}
+            onClose={() => setWorkoutPlayerOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -292,9 +423,9 @@ function MiniCalendar({ targetDate }: { targetDate: Date }) {
   const month = targetDate.getMonth();
   const targetDay = targetDate.getDate();
 
-  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startOffset = (firstDay + 6) % 7; // Mon-start
+  const startOffset = (firstDay + 6) % 7;
 
   const cells: (number | null)[] = [
     ...Array(startOffset).fill(null),
@@ -308,12 +439,10 @@ function MiniCalendar({ targetDate }: { targetDate: Date }) {
         {targetDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
-        {DAYS.map(d => <div key={d} className="text-[10px] text-muted-foreground font-semibold">{d}</div>)}
+        {DAYS.map((d, i) => <div key={i} className="text-[10px] text-muted-foreground font-semibold">{d}</div>)}
         {cells.map((day, i) => {
-          const isTarget = day === targetDay &&
-            today.getMonth() === month ? false : day === targetDay;
-          const isToday  = day === today.getDate() && today.getMonth() === month && today.getFullYear() === year;
           const isTarget2 = day === targetDay;
+          const isToday   = day === today.getDate() && today.getMonth() === month && today.getFullYear() === year;
           return (
             <div
               key={i}
@@ -331,7 +460,7 @@ function MiniCalendar({ targetDate }: { targetDate: Date }) {
   );
 }
 
-/* ── Workout Player (in-page fullscreen modal) ── */
+/* ── Guided Workout Player ── */
 interface WorkoutExercise {
   exercise_id: string;
   exercise_name: string;
@@ -342,94 +471,139 @@ interface WorkoutExercise {
   notes?: string;
 }
 
+type PlayerPhase = 'exercise' | 'rest' | 'done' | 'feedback';
+
 function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const exercises: WorkoutExercise[] = (plan.exercises as unknown as WorkoutExercise[]) ?? [];
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [currentSet, setCurrentSet] = useState(1);
-  const [phase, setPhase] = useState<'exercise' | 'rest'>('exercise');
-  const [restSecsLeft, setRestSecsLeft] = useState(0);
-  const [done, setDone] = useState(false);
+  const [currentIdx, setCurrentIdx]   = useState(0);
+  const [currentSet, setCurrentSet]   = useState(1);
+  const [phase, setPhase]             = useState<PlayerPhase>('exercise');
+  const [restSecs, setRestSecs]       = useState(0);
+  const [timerSecs, setTimerSecs]     = useState(0);
   const [timerActive, setTimerActive] = useState(false);
-  const [secsLeft, setSecsLeft] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const ex = exercises[currentIdx];
 
-  // Timer effect
-  useState(() => {
-    if (!timerActive) return;
-    const interval = setInterval(() => {
+  // Central tick — avoids stale closure issues via functional setters
+  useEffect(() => {
+    if (!timerActive) { if (intervalRef.current) clearInterval(intervalRef.current); return; }
+    intervalRef.current = setInterval(() => {
       if (phase === 'exercise') {
-        setSecsLeft(s => {
-          if (s <= 1) { clearInterval(interval); setTimerActive(false); return 0; }
+        setTimerSecs(s => {
+          if (s <= 1) { clearInterval(intervalRef.current!); setTimerActive(false); return 0; }
           return s - 1;
         });
-      } else {
-        setRestSecsLeft(s => {
-          if (s <= 1) {
-            clearInterval(interval);
-            setTimerActive(false);
-            handleNextSet();
-            return 0;
-          }
+      } else if (phase === 'rest') {
+        setRestSecs(s => {
+          if (s <= 1) { clearInterval(intervalRef.current!); setTimerActive(false); doNextSet(); return 0; }
           return s - 1;
         });
       }
     }, 1000);
-    return () => clearInterval(interval);
-  });
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerActive, phase]);
 
-  const handleNextSet = () => {
+  const doNextSet = () => {
+    if (!ex) return;
     if (currentSet < ex.sets) {
       setCurrentSet(s => s + 1);
       setPhase('exercise');
+      setTimerSecs(0);
+      setTimerActive(false);
     } else if (currentIdx < exercises.length - 1) {
       setCurrentIdx(i => i + 1);
       setCurrentSet(1);
       setPhase('exercise');
+      setTimerSecs(0);
+      setTimerActive(false);
     } else {
       finishWorkout();
     }
   };
 
   const startRest = () => {
-    setPhase('rest');
-    setRestSecsLeft(ex.rest_secs);
-    setTimerActive(true);
+    if (currentSet < ex.sets || currentIdx < exercises.length - 1) {
+      setPhase('rest');
+      setRestSecs(ex.rest_secs || 60);
+      setTimerActive(true);
+    } else {
+      finishWorkout();
+    }
   };
 
   const finishWorkout = async () => {
+    setTimerActive(false);
+    if (intervalRef.current) clearInterval(intervalRef.current);
     await supabase.from('workout_completions').insert({
       workout_plan_id: plan.id,
       client_id: clientId,
     });
     qc.invalidateQueries({ queryKey: ['client-last-completion', clientId] });
-    setDone(true);
+    setPhase('done');
+    // Auto-advance to feedback after 2s
+    setTimeout(() => setPhase('feedback'), 2000);
   };
 
-  if (done) {
+  const progress = exercises.length > 0
+    ? ((currentIdx * (ex?.sets ?? 1) + (currentSet - 1)) / exercises.reduce((t, e) => t + e.sets, 0)) * 100
+    : 0;
+
+  const isTimed = ex?.measure_type === 'secondi';
+
+  // Feedback step
+  if (phase === 'feedback') {
     return (
-      <div className="fixed inset-0 bg-emerald-600 flex flex-col items-center justify-center z-50 text-white p-8">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-background flex flex-col z-50 overflow-y-auto"
+      >
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <span className="font-semibold">Feedback sessione</span>
+          <button onClick={onClose} className="text-muted-foreground text-sm">✕ Chiudi</button>
+        </div>
+        <div className="flex-1 p-6 max-w-md mx-auto w-full">
+          <SessionFeedbackForm
+            clientId={clientId}
+            onDone={onClose}
+          />
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Done celebration
+  if (phase === 'done') {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-emerald-600 flex flex-col items-center justify-center z-50 text-white p-8"
+      >
         <CheckCircle2 className="w-20 h-20 mb-6" />
         <h2 className="text-3xl font-bold mb-2">Ottimo lavoro! 🎉</h2>
-        <p className="text-emerald-100 mb-8 text-center">Allenamento completato e registrato.</p>
-        <Button variant="outline" className="border-white text-white hover:bg-emerald-700" onClick={onClose}>
-          Torna alla dashboard
-        </Button>
-      </div>
+        <p className="text-emerald-100 mb-8 text-center">Allenamento completato!</p>
+        <p className="text-emerald-200 text-sm">Caricamento feedback...</p>
+      </motion.div>
     );
   }
 
   if (!ex) return null;
 
-  const isTimed = ex.measure_type === 'secondi';
-  const progress = ((currentIdx * ex.sets + (currentSet - 1)) / (exercises.length * ex.sets)) * 100;
-
   return (
-    <div className="fixed inset-0 bg-background flex flex-col z-50">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-background flex flex-col z-50"
+    >
       {/* Progress bar */}
-      <div className="h-1 bg-muted">
-        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+      <div className="h-1.5 bg-muted">
+        <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
       </div>
 
       {/* Header */}
@@ -443,12 +617,19 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
       {phase === 'rest' ? (
         /* ─ Rest phase ─ */
         <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 bg-amber-50 dark:bg-amber-950/20">
-          <p className="text-lg font-semibold text-amber-700">Recupero</p>
-          <div className="text-8xl font-extrabold text-amber-600 tabular-nums">{restSecsLeft}</div>
+          <p className="text-lg font-semibold text-amber-700">⏸ Recupero</p>
+          <div className="text-8xl font-extrabold text-amber-600 tabular-nums">{restSecs}</div>
           <p className="text-muted-foreground">secondi</p>
-          <Button variant="outline" onClick={() => { setTimerActive(false); handleNextSet(); }}>
-            Salta recupero →
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => { setTimerActive(false); doNextSet(); }}>
+              <SkipForward className="w-4 h-4 mr-1" /> Salta recupero
+            </Button>
+          </div>
+          {exercises[currentIdx + 1] && (
+            <p className="text-xs text-muted-foreground text-center">
+              Prossimo: <strong>{exercises[currentIdx + 1]?.exercise_name}</strong>
+            </p>
+          )}
         </div>
       ) : (
         /* ─ Exercise phase ─ */
@@ -463,7 +644,7 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
           {/* Main indicator */}
           {isTimed ? (
             <div className="text-8xl font-extrabold text-emerald-600 tabular-nums">
-              {timerActive ? secsLeft : ex.reps_or_secs}
+              {timerActive ? timerSecs : ex.reps_or_secs}
             </div>
           ) : (
             <div className="text-8xl font-extrabold text-emerald-600">
@@ -476,7 +657,7 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
           </div>
 
           {ex.notes && (
-            <p className="text-xs text-muted-foreground text-center max-w-xs">{ex.notes}</p>
+            <p className="text-xs text-muted-foreground text-center max-w-xs italic">"{ex.notes}"</p>
           )}
 
           {/* Actions */}
@@ -484,9 +665,9 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
             {isTimed && !timerActive && (
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 text-white h-14 text-base"
-                onClick={() => { setSecsLeft(ex.reps_or_secs); setTimerActive(true); }}
+                onClick={() => { setTimerSecs(ex.reps_or_secs); setTimerActive(true); }}
               >
-                Avvia timer
+                <Play className="w-4 h-4 mr-2" /> Avvia timer
               </Button>
             )}
             <Button
@@ -495,17 +676,24 @@ function WorkoutPlayer({ plan, clientId, onClose }: { plan: WorkoutPlan; clientI
               disabled={isTimed && timerActive}
             >
               {currentSet === ex.sets && currentIdx === exercises.length - 1
-                ? 'Fine! Completa 🎉'
-                : 'Fatto → Recupero'}
+                ? '🎉 Fine! Completa'
+                : <><CheckCircle2 className="w-4 h-4 mr-2" /> Fatto → Recupero</>}
             </Button>
-            {currentSet === ex.sets && currentIdx === exercises.length - 1 && (
-              <Button variant="outline" onClick={finishWorkout}>
-                Completa senza recupero
-              </Button>
-            )}
+          </div>
+
+          {/* Series dots */}
+          <div className="flex gap-2 mt-2">
+            {Array.from({ length: ex.sets }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-2.5 h-2.5 rounded-full transition-all ${
+                  i < currentSet - 1 ? 'bg-emerald-500' : i === currentSet - 1 ? 'bg-emerald-600 scale-125' : 'bg-muted'
+                }`}
+              />
+            ))}
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

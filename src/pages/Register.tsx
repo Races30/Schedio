@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Scissors, Dumbbell, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { SHOW_SALON } from '@/config';
 
 const DAYS = [
   { value: 1, label: 'Lun' }, { value: 2, label: 'Mar' }, { value: 3, label: 'Mer' },
@@ -23,9 +24,10 @@ const generateToken = () => {
 export default function Register() {
   const navigate = useNavigate();
   const { signUp, refreshActivity } = useAuth();
-  const [step, setStep] = useState(0); // 0 = category, 1 = info, 2 = schedule, 3 = credentials
+  // When salon is hidden, skip step 0 (category selection) entirely
+  const [step, setStep] = useState(SHOW_SALON ? 0 : 1); // 0 = category, 1 = info, 2 = schedule, 3 = credentials
   const [loading, setLoading] = useState(false);
-  const [category, setCategory] = useState<'salone' | 'coach'>('salone');
+  const [category, setCategory] = useState<'salone' | 'coach'>(SHOW_SALON ? 'salone' : 'coach');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -141,16 +143,18 @@ export default function Register() {
             ))}
           </div>
 
-          {/* Step 0: Category */}
-          {step === 0 && (
+          {/* Step 0: Category — only shown when SHOW_SALON is true */}
+          {step === 0 && SHOW_SALON && (
             <div className="space-y-4">
-              <button onClick={() => { setCategory('salone'); setDefaultDuration(30); }}
-                className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'salone' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Scissors className="w-6 h-6 text-primary" /></div>
-                  <div><div className="font-semibold text-lg">Barbiere/Parrucchiere</div><div className="text-sm text-muted-foreground">Taglio, piega, barba, centro estetico</div></div>
-                </div>
-              </button>
+              {SHOW_SALON && (
+                <button onClick={() => { setCategory('salone'); setDefaultDuration(30); }}
+                  className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'salone' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Scissors className="w-6 h-6 text-primary" /></div>
+                    <div><div className="font-semibold text-lg">Barbiere/Parrucchiere</div><div className="text-sm text-muted-foreground">Taglio, piega, barba, centro estetico</div></div>
+                  </div>
+                </button>
+              )}
               <button onClick={() => { setCategory('coach'); setDefaultDuration(60); setHostWorksInSalon(false); }}
                 className={`w-full text-left p-5 rounded-xl border-2 transition-all ${category === 'coach' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
                 <div className="flex items-center gap-4">

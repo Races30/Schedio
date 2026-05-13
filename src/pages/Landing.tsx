@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Users, Clock, Star, ArrowRight, Scissors, CheckCircle2, ChevronDown, UserPlus, Dumbbell, Package, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { SHOW_SALON } from '@/config';
 
 const salonFeatures = [
   { icon: Calendar, title: 'Calendario Smart', desc: 'Vista giornaliera e settimanale con slot da 15 minuti e appuntamenti colorati.' },
@@ -28,7 +29,7 @@ const faqs = [
   { q: 'È gratuito?', a: 'Sì! Al momento la piattaforma è completamente gratuita. In futuro saranno disponibili piani premium.' },
   { q: 'Devo installare qualcosa?', a: 'No, funziona direttamente dal browser su qualsiasi dispositivo.' },
   { q: 'I miei clienti devono registrarsi?', a: 'No! I clienti prenotano dalla tua pagina pubblica senza creare un account.' },
-  { q: 'Posso gestire più dipendenti?', a: 'Sì! Nel modulo Salone ogni dipendente ha il suo calendario e servizi assegnati.' },
+  ...(SHOW_SALON ? [{ q: 'Posso gestire più dipendenti?', a: 'Sì! Nel modulo Salone ogni dipendente ha il suo calendario e servizi assegnati.' }] : []),
   { q: 'Il modulo Coach supporta pacchetti?', a: 'Sì! Puoi creare pacchetti sedute con conteggio automatico e scadenze.' },
 ];
 
@@ -41,7 +42,7 @@ const plans = [
 export default function Landing() {
   const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'salone' | 'coach'>('salone');
+  const [activeTab, setActiveTab] = useState<'salone' | 'coach'>(SHOW_SALON ? 'salone' : 'coach');
 
   const features = activeTab === 'salone' ? salonFeatures : coachFeatures;
 
@@ -69,13 +70,15 @@ export default function Landing() {
               <span className="text-primary">senza complicazioni</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Calendario, prenotazioni, clienti e molto altro. Per barbieri/parrucchieri e personal trainer. Basta WhatsApp e agende cartacee.
+              Calendario, prenotazioni, clienti e molto altro.{SHOW_SALON ? ' Per barbieri/parrucchieri e personal trainer.' : ' Per personal trainer e professionisti del fitness.'} Basta WhatsApp e agende cartacee.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              <Button variant="hero" size="lg" onClick={() => navigate('/register')} className="text-base">
-                <Scissors className="w-5 h-5" /> Per Barbieri/Parrucchieri
-              </Button>
-              <Button variant="outline" size="lg" onClick={() => navigate('/register')} className="text-base">
+              {SHOW_SALON && (
+                <Button variant="hero" size="lg" onClick={() => navigate('/register')} className="text-base">
+                  <Scissors className="w-5 h-5" /> Per Barbieri/Parrucchieri
+                </Button>
+              )}
+              <Button variant={SHOW_SALON ? 'outline' : 'hero'} size="lg" onClick={() => navigate('/register')} className="text-base">
                 <Dumbbell className="w-5 h-5" /> Per Personal Trainer
               </Button>
             </div>
@@ -88,10 +91,12 @@ export default function Landing() {
         <div className="container mx-auto max-w-5xl">
           <h2 className="text-3xl font-bold text-center mb-6">Tutto ciò che ti serve</h2>
           <div className="flex justify-center gap-2 mb-10">
-            <button onClick={() => setActiveTab('salone')}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'salone' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-              <Scissors className="w-4 h-4 inline mr-2" />Barbiere/Parrucchiere
-            </button>
+            {SHOW_SALON && (
+              <button onClick={() => setActiveTab('salone')}
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'salone' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                <Scissors className="w-4 h-4 inline mr-2" />Barbiere/Parrucchiere
+              </button>
+            )}
             <button onClick={() => setActiveTab('coach')}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'coach' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
               <Dumbbell className="w-4 h-4 inline mr-2" />Personal Trainer

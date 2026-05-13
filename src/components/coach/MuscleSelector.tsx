@@ -29,14 +29,24 @@ export function getMuscleLabel(id: string): string {
 
 export const ALL_MUSCLES = Object.keys(MUSCLE_LABELS);
 
+export type MacroArea = 'upper' | 'lower' | 'full' | null;
+
+export const MACRO_AREAS_MUSCLES: Record<string, string[]> = {
+  upper: ['trapezius', 'upper-back', 'lower-back', 'chest', 'biceps', 'triceps', 'forearm', 'back-deltoids', 'front-deltoids', 'abs', 'obliques', 'head', 'neck'],
+  lower: ['adductor', 'abductors', 'hamstring', 'quadriceps', 'calves', 'gluteal'],
+  full: ALL_MUSCLES
+};
+
 interface MuscleSelectorProps {
   selected: string[];
   onChange: (selected: string[]) => void;
+  macroArea?: MacroArea;
+  onMacroAreaChange?: (area: MacroArea) => void;
   readOnly?: boolean;
   className?: string;
 }
 
-export function MuscleSelector({ selected, onChange, readOnly = false, className = '' }: MuscleSelectorProps) {
+export function MuscleSelector({ selected, onChange, macroArea, onMacroAreaChange, readOnly = false, className = '' }: MuscleSelectorProps) {
   const toggle = (muscleId: string) => {
     if (readOnly) return;
     onChange(
@@ -52,19 +62,47 @@ export function MuscleSelector({ selected, onChange, readOnly = false, className
     }
   };
 
-  // Convert selected muscles into the expected data format for react-body-highlighter
-  // We use frequency 1 so highlightedColors[0] is applied
-  const data = selected.length > 0 ? [
+  // If specific muscles are selected, show those. Otherwise show the macro area if selected.
+  const highlightedMuscles = selected.length > 0 
+    ? selected 
+    : (macroArea ? MACRO_AREAS_MUSCLES[macroArea] : []);
+
+  const data = highlightedMuscles.length > 0 ? [
     {
       name: 'Selection',
-      muscles: selected as Muscle[],
+      muscles: highlightedMuscles as Muscle[],
       frequency: 1
     }
   ] : [];
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {/* Labels strip */}
+      
+      {/* Macro Area Selection */}
+      {!readOnly && onMacroAreaChange && (
+        <div className="flex gap-2 p-1 bg-muted/50 rounded-lg w-fit mb-4">
+          <button
+            onClick={() => { onMacroAreaChange('upper'); onChange([]); }}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${macroArea === 'upper' ? 'bg-white shadow-sm font-semibold' : 'text-muted-foreground hover:bg-white/50'}`}
+          >
+            Parte alta
+          </button>
+          <button
+            onClick={() => { onMacroAreaChange('lower'); onChange([]); }}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${macroArea === 'lower' ? 'bg-white shadow-sm font-semibold' : 'text-muted-foreground hover:bg-white/50'}`}
+          >
+            Parte bassa
+          </button>
+          <button
+            onClick={() => { onMacroAreaChange('full'); onChange([]); }}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${macroArea === 'full' ? 'bg-white shadow-sm font-semibold' : 'text-muted-foreground hover:bg-white/50'}`}
+          >
+            Tutto il corpo
+          </button>
+        </div>
+      )}
+
+      {/* Specific Labels strip */}
       {!readOnly && (
         <div className="flex flex-wrap gap-1.5">
           {ALL_MUSCLES.map(muscleId => {

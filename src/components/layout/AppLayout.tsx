@@ -2,14 +2,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import {
   Calendar, Users, LayoutDashboard, Settings,
-  LogOut, Menu, X, Package, Dumbbell, TrendingUp,
+  LogOut, Menu, X, Package, Dumbbell, TrendingUp, BarChart2, History, ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { NotificationBell } from './NotificationBell';
+import { SHOW_SALON } from '@/config';
 
-// ── Feature flag: set to true to re-enable salon module ──────────────────────
-const SHOW_SALON = false;
 
 export default function AppLayout() {
   const { user, activity, userRole, loading, signOut } = useAuth();
@@ -35,14 +34,17 @@ export default function AppLayout() {
   const isCoach  = activity.category === 'coach';
 
   const navItems = [
-    { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',  show: true },
-    { to: '/calendar',   icon: Calendar,         label: 'Calendario', show: true },
-    { to: '/clients',    icon: Users,            label: 'Clienti',    show: true },
-    { to: '/exercises',  icon: Dumbbell,         label: 'Esercizi',   show: isCoach },
+    { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',    show: true },
+    { to: '/calendar',   icon: Calendar,         label: 'Calendario',   show: true },
+    { to: '/clients',    icon: Users,            label: 'Clienti',      show: true },
+    { to: '/exercises',     icon: Dumbbell,       label: 'Esercizi',        show: isCoach },
+    { to: '/workout-plans', icon: ClipboardList,  label: 'Schede',          show: isCoach },
+    { to: '/sessions',      icon: History,        label: 'Sessioni',        show: isCoach },
+    { to: '/analytics',     icon: BarChart2,      label: 'Analytics',       show: isCoach },
     // SALON — hidden while SHOW_SALON=false
     // { to: '/services',   icon: Scissors,         label: 'Servizi',    show: isSalone },
     // { to: '/employees',  icon: Contact,          label: 'Dipendenti', show: isSalone },
-    { to: '/packages',   icon: Package,          label: 'Pacchetti',  show: isCoach },
+    // { to: '/packages',   icon: Package,          label: 'Pacchetti',  show: isCoach },
     { to: '/settings',   icon: Settings,         label: 'Impostazioni', show: true },
   ].filter(item => item.show);
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy } from 'lucide-react';
+import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy, MailCheck, MailX, Send, Clock, Dumbbell, BarChart2 } from 'lucide-react';
 import { Client, Appointment, Package as PackageType, ProgressEntry, ExerciseProgress, MEASURE_UNIT } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatTime } from '@/utils/dateHelpers';
 import { CompleteSessionDialog } from '@/components/coach/CompleteSessionDialog';
 import { ProgressIndicator } from '@/components/coach/ProgressIndicator';
 import { MuscleSelector } from '@/components/coach/MuscleSelector';
+import { WorkoutPlanEditor } from '@/components/coach/WorkoutPlanEditor';
 
 const OBJECTIVES = ['Dimagrimento', 'Aumento massa', 'Tonificazione', 'Postura', 'Performance', 'Recupero forma', 'Mobilità', 'Preparazione atletica'];
 const LEVELS = ['Principiante', 'Intermedio', 'Avanzato', 'Esperto'];
@@ -110,11 +112,26 @@ export default function ClientsPage() {
                 {c.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium flex items-center gap-2">
+                <div className="font-medium flex items-center gap-2 flex-wrap">
                   {c.name}
                   {c.status && c.status !== 'attivo' && (
                     <span className={`text-[10px] px-2 py-0.5 flex-shrink-0 rounded-full ${c.status === 'no-show' ? 'bg-destructive/10 text-destructive font-semibold' : 'bg-warning/10 text-warning font-semibold cursor-help'}`} title={c.status_reason || ''}>
                       {c.status.toUpperCase()}
+                    </span>
+                  )}
+                  {isCoach && c.invite_accepted && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold flex items-center gap-1 flex-shrink-0">
+                      <MailCheck className="w-2.5 h-2.5" /> Attivo
+                    </span>
+                  )}
+                  {isCoach && !c.invite_accepted && c.invite_sent && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold flex items-center gap-1 flex-shrink-0">
+                      <Clock className="w-2.5 h-2.5" /> Invito inviato
+                    </span>
+                  )}
+                  {isCoach && !c.invite_accepted && !c.invite_sent && c.invite_token && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold flex items-center gap-1 flex-shrink-0">
+                      <MailX className="w-2.5 h-2.5" /> Non invitato
                     </span>
                   )}
                 </div>
@@ -171,6 +188,25 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
 
   const generateToken = () => crypto.randomUUID();
 
+  const sendInviteEmail = async (token: string, clientName: string, clientEmail: string, clientId: string) => {
+    const { error: funcError } = await supabase.functions.invoke('send-client-invite', {
+      body: {
+        email: clientEmail,
+        clientName,
+        trainerName: activity?.name || 'Il tuo trainer',
+        token,
+      },
+    });
+    if (!funcError) {
+      await supabase.from('clients').update({ invite_sent: true, invited_at: new Date().toISOString() } as never).eq('id', clientId);
+      return true;
+    } else {
+      console.error('Error sending invite email:', funcError);
+      toast.error(`Errore nell'invio dell'email: ${funcError.message || 'Errore sconosciuto'}`);
+      return false;
+    }
+  };
+
   const save = async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return; }
     setLoading(true);
@@ -212,22 +248,7 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
         toast.success('Cliente creato');
         // Send invite email via Edge Function
         if (inviteToken && email) {
-          const { error: funcError } = await supabase.functions.invoke('send-client-invite', {
-            body: {
-              email: email.trim().toLowerCase(),
-              clientName: name.trim(),
-              trainerName: activity?.name || 'Il tuo trainer',
-              token: inviteToken,
-            },
-          });
-
-          if (!funcError) {
-            await supabase.from('clients').update({ invite_sent: true } as any).eq('id', data.id);
-          } else {
-            console.error('Error sending invite email:', funcError);
-            toast.error(`Errore nell'invio dell'email: ${funcError.message || 'Errore sconosciuto'}`);
-          }
-
+          await sendInviteEmail(inviteToken, name.trim(), email.trim().toLowerCase(), data.id);
           const link = `${window.location.origin}/setup-account?token=${inviteToken}`;
           setInviteLink(link);
         }
@@ -301,22 +322,14 @@ function ClientDialog({ open, onClose, client, activityId, isCoach }: {
                 </Select>
               </div>
               <div>
-                <Label>Parte del corpo da allenare</Label>
-                <Select value={targetArea} onValueChange={setTargetArea}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona area" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upper">Parte alta</SelectItem>
-                    <SelectItem value="lower">Parte bassa</SelectItem>
-                    <SelectItem value="full">Tutto il corpo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="mb-2 block">Parte del corpo e muscoli target</Label>
+                <MuscleSelector
+                  macroArea={targetArea as 'upper' | 'lower' | 'full' | null}
+                  onMacroAreaChange={(area) => setTargetArea(area || '')}
+                  selected={targetMuscles}
+                  onChange={setTargetMuscles}
+                />
               </div>
-              {targetArea && (
-                <div>
-                  <Label className="mb-2 block">Muscoli target <span className="text-xs text-muted-foreground">(opzionale)</span></Label>
-                  <MuscleSelector selected={targetMuscles} onChange={setTargetMuscles} />
-                </div>
-              )}
               <div>
                 <Label>Livello</Label>
                 <Select value={level} onValueChange={setLevel}>
@@ -346,9 +359,12 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
   client: Client; onClose: () => void; activityId: string; isCoach?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'info' | 'progress' | 'exercises'>('info');
   const [showProgressForm, setShowProgressForm] = useState(false);
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const [resendingInvite, setResendingInvite] = useState(false);
+  const [planEditorOpen, setPlanEditorOpen] = useState(false);
   const { activity } = useAuth();
 
   const { data: appointments = [] } = useQuery({
@@ -407,7 +423,36 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
   const futureAppointments = appointments.filter((a) => new Date(a.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date));
   const pastAppointments = appointments.filter((a) => new Date(a.date) < new Date()).sort((a, b) => b.date.localeCompare(a.date));
 
+  const handleResendInvite = async () => {
+    if (!client.invite_token || !client.email) {
+      toast.error('Il cliente non ha un token o email valida.');
+      return;
+    }
+    setResendingInvite(true);
+    try {
+      const { error: funcError } = await supabase.functions.invoke('send-client-invite', {
+        body: {
+          email: client.email,
+          clientName: client.name,
+          trainerName: activity?.name || 'Il tuo trainer',
+          token: client.invite_token,
+        },
+      });
+      if (funcError) throw funcError;
+      await supabase.from('clients')
+        .update({ invite_sent: true, invited_at: new Date().toISOString() } as never)
+        .eq('id', client.id);
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      toast.success('Invito re-inviato con successo!');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante il re-invio');
+    } finally {
+      setResendingInvite(false);
+    }
+  };
+
   return (
+    <>
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
@@ -444,10 +489,101 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               {isCoach && client.frequency && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza: {client.frequency}</div>}
               {!isCoach && client.last_service_name && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Ultimo servizio: {client.last_service_name}</div>}
               {client.visit_frequency_days && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Frequenza media: {Math.round(client.visit_frequency_days)} giorni</div>}
+              
+              {/* Target Body Area visualization (coach only) */}
+              {isCoach && (client.target_area || (client.target_muscles && client.target_muscles.length > 0)) && (
+                <div className="mt-4 p-4 border rounded-xl bg-muted/20">
+                  <div className="text-sm font-semibold mb-2">Area di lavoro target</div>
+                  <MuscleSelector
+                    readOnly={true}
+                    selected={client.target_muscles || []}
+                    macroArea={client.target_area as 'upper' | 'lower' | 'full' | null}
+                    onChange={() => {}}
+                    className="scale-90 origin-top"
+                  />
+                </div>
+              )}
+
+              {/* Invite status block (coach only) */}
+              {isCoach && client.invite_token && !client.invite_accepted && (
+                <div className={`mt-2 p-3 rounded-lg border text-sm ${
+                  client.invite_sent
+                    ? 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/20 dark:border-amber-800'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-900/30 dark:border-slate-700'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-medium">
+                      {client.invite_sent ? <Clock className="w-4 h-4" /> : <MailX className="w-4 h-4" />}
+                      {client.invite_sent ? 'Invito inviato — in attesa' : 'Invito non ancora inviato'}
+                    </div>
+                    <div className="flex gap-2">
+                      {client.email && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={resendingInvite}
+                          onClick={handleResendInvite}
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          {resendingInvite ? '...' : client.invite_sent ? 'Reinvia' : 'Invia ora'}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const link = `${window.location.origin}/setup-account?token=${client.invite_token}`;
+                          navigator.clipboard.writeText(link);
+                          toast.success('Link copiato!');
+                        }}
+                      >
+                        <Copy className="w-3 h-3 mr-1" /> Copia link
+                      </Button>
+                    </div>
+                  </div>
+                  {client.invited_at && (
+                    <div className="text-xs mt-1 opacity-70">
+                      Inviato il {new Date(client.invited_at).toLocaleDateString('it-IT')}
+                    </div>
+                  )}
+                </div>
+              )}
+              {isCoach && client.invite_accepted && (
+                <div className="mt-2 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-800 text-sm flex items-center gap-2">
+                  <MailCheck className="w-4 h-4" />
+                  <span className="font-medium">Account attivo</span>
+                  {client.accepted_at && <span className="text-xs opacity-70 ml-auto">dal {new Date(client.accepted_at).toLocaleDateString('it-IT')}</span>}
+                </div>
+              )}
+
               {isCoach && client.next_recommended_at && <div className="flex items-center gap-2 text-sm"><Target className="w-4 h-4 text-muted-foreground" /> Prossima consigliata: {formatDate(client.next_recommended_at)}</div>}
               {client.notes && <p className="text-sm text-muted-foreground">{client.notes}</p>}
               {client.important_notes && <p className="text-sm text-destructive">{client.important_notes}</p>}
             </div>
+
+            {/* Coach quick actions */}
+            {isCoach && (
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => { onClose(); navigate(`/clients/${client.id}/progress`); }}
+                >
+                  <BarChart2 className="w-3.5 h-3.5 mr-1" /> Progressi
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-violet-300 text-violet-700 hover:bg-violet-50"
+                  onClick={() => setPlanEditorOpen(true)}
+                >
+                  <Dumbbell className="w-3.5 h-3.5 mr-1" /> Scheda allenamento
+                </Button>
+              </div>
+            )}
 
             {/* Status info */}
             {client.status && client.status !== 'attivo' && (
@@ -671,6 +807,18 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
         )}
       </DialogContent>
     </Dialog>
+
+    {/* WorkoutPlan editor (outside Dialog to avoid z-index stacking) */}
+    {activity && (
+      <WorkoutPlanEditor
+        open={planEditorOpen}
+        onClose={() => setPlanEditorOpen(false)}
+        clientId={client.id}
+        clientName={client.name}
+        activityId={activityId}
+      />
+    )}
+  </>
   );
 }
 
