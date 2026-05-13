@@ -79,9 +79,9 @@ function EnergyEmojis({ level }: { level: number }) {
 function StarRating({ rating }: { rating: number | null }) {
   if (!rating) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-0.5 text-lg leading-none">
       {[1, 2, 3, 4, 5].map(i => (
-        <Star key={i} className={`w-3 h-3 ${i <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted'}`} />
+        <span key={i} className={i <= rating ? 'text-amber-400' : 'text-muted'}>★</span>
       ))}
     </div>
   );

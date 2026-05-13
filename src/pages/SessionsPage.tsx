@@ -454,8 +454,7 @@ function SessionCard({ session, index }: { session: SessionRow; index: number })
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50 transition-colors"
             >
-              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-              <span>Feedback lasciato</span>
+              <span>💬 Feedback</span>
             </button>
           )}
           <div className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}>

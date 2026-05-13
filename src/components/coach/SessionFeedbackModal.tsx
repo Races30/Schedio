@@ -25,9 +25,9 @@ function EnergyEmojis({ level }: { level: number }) {
 function StarRating({ rating }: { rating: number | null }) {
   if (!rating) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-0.5 text-lg leading-none">
       {[1, 2, 3, 4, 5].map(i => (
-        <Star key={i} className={`w-4 h-4 ${i <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted'}`} />
+        <span key={i} className={i <= rating ? 'text-amber-400' : 'text-muted'}>★</span>
       ))}
     </div>
   );
@@ -66,9 +66,9 @@ export function SessionFeedbackModal({ open, onClose, feedback, clientName, sess
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Stato di stanchezza</span>
               {feedback.was_tired ? (
-                <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-3 py-1 rounded-full font-medium">Stanco</span>
+                <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-3 py-1 rounded-full font-medium">😴 Stanco</span>
               ) : (
-                <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1 rounded-full font-medium">Riposato</span>
+                <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1 rounded-full font-medium">✅ Riposato</span>
               )}
             </div>
 
@@ -76,11 +76,11 @@ export function SessionFeedbackModal({ open, onClose, feedback, clientName, sess
               <span className="text-sm font-medium">Difficoltà riscontrate</span>
               {feedback.had_difficulty ? (
                 <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-3 py-1 rounded-full font-medium flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> Difficoltà
+                  ⚠️ Difficoltà
                 </span>
               ) : (
                 <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1 rounded-full font-medium">
-                  Nessuna difficoltà
+                  ✅ Nessuna difficoltà
                 </span>
               )}
             </div>
