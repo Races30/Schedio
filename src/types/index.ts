@@ -59,6 +59,18 @@ export interface Client {
   sessions_remaining?: number | null;
   package_expiry_date?: string | null;
   activity_status?: string | null;
+  // Invite flow (coach only)
+  invite_token?: string | null;
+  invite_sent?: boolean;
+  invite_accepted?: boolean;
+  invited_at?: string | null;
+  accepted_at?: string | null;
+  // Coach-extended fields
+  user_id?: string | null;
+  goal?: string | null;
+  target_area?: string | null;
+  target_muscles?: string[];
+  trainer_private_notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -221,4 +233,69 @@ export interface WorkoutCompletion {
   client_id: string;
   completed_at: string;
   created_at: string;
+}
+
+export interface SessionFeedback {
+  id: string;
+  session_id: string | null;
+  appointment_id: string | null;
+  client_id: string;
+  energy_level: number;       // 1–5
+  was_tired: boolean;
+  had_difficulty: boolean;
+  difficulty_notes: string | null;
+  overall_rating: number | null; // 1–5
+  created_at: string;
+}
+
+// ── Session Negotiation ──────────────────────────────────────────────────────
+
+export type CoachSessionStatus =
+  | 'proposta'
+  | 'controproposta'
+  | 'confermata'
+  | 'completata'
+  | 'rifiutata'
+  | 'annullata';
+
+export interface CoachSession {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  scheduled_at: string | null;
+  status: CoachSessionStatus;
+  proposed_by: 'trainer' | 'cliente';
+  proposed_times: string[];      // legacy jsonb array — not actively used now
+  confirmed_at: string | null;
+  notes: string | null;
+  cancelled_by?: 'trainer' | 'cliente' | null;
+  cancel_reason?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  client?: Client;
+  proposals?: SessionProposal[];
+}
+
+export interface SessionProposal {
+  id: string;
+  session_id: string;
+  proposed_by: 'trainer' | 'cliente';
+  proposed_at: string;
+  scheduled_at: string;
+  notes: string | null;
+  created_at: string;
+}
+
+// ── Trainer Availability ─────────────────────────────────────────────────────
+
+export interface TrainerAvailability {
+  id: string;
+  activity_id: string;
+  day_of_week: number; // 0=Dom, 1=Lun, 2=Mar, 3=Mer, 4=Gio, 5=Ven, 6=Sab
+  start_time: string;  // "HH:mm:ss" or "HH:mm"
+  end_time: string;
+  is_active: boolean | null;
+  created_at: string | null;
 }

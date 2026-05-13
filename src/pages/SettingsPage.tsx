@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Save, ExternalLink, Scissors, Users, Upload, X } from 'lucide-react';
+import { TrainerAvailabilitySection } from '@/components/coach/TrainerAvailabilitySection';
 
 const DAYS = [
   { value: 1, label: 'Lunedì' },
@@ -301,6 +302,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Coach-only: detailed weekly availability */}
+        {isCoach && <TrainerAvailabilitySection activityId={activity.id} />}
 
         {/* Preferences */}
         <section className="glass-card p-6">
