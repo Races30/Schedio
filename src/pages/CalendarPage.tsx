@@ -45,6 +45,7 @@ export default function CalendarPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const isSalone = activity?.category === 'salone';
+  const isCoach = activity?.category === 'coach';
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -54,6 +55,22 @@ export default function CalendarPage() {
     start: format(displayDays[0], 'yyyy-MM-dd'),
     end: format(displayDays[displayDays.length - 1], 'yyyy-MM-dd'),
   };
+
+  const { data: coachSessions = [] } = useQuery({
+    queryKey: ['calendar-sessions', activity?.id, dateRange],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sessions')
+        .select('*, client:clients(id, name, surname)')
+        .eq('activity_id', activity!.id)
+        .in('status', ['confermata', 'completata'])
+        .gte('scheduled_at', dateRange.start + 'T00:00:00')
+        .lte('scheduled_at', dateRange.end + 'T23:59:59')
+        .order('scheduled_at');
+      return data ?? [];
+    },
+    enabled: !!activity && isCoach,
+  });
 
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments', activity?.id, dateRange],
@@ -103,13 +120,44 @@ export default function CalendarPage() {
     [employeesRaw, activity]
   );
 
+  const mappedCoachSessions = useMemo(() => {
+    return coachSessions.map((session: any) => {
+      const dateObj = new Date(session.scheduled_at);
+      const dateStr = format(dateObj, 'yyyy-MM-dd');
+      const timeStr = format(dateObj, 'HH:mm');
+      const endTimeStr = addMinutesToTime(timeStr, 60);
+      const isCompleted = session.status === 'completata';
+      
+      const clientName = [session.client?.name, session.client?.surname || session.client?.last_name]
+        .filter(Boolean)
+        .join(' ');
+
+      return {
+        id: session.id,
+        date: dateStr,
+        start_time: timeStr,
+        end_time: endTimeStr,
+        duration_minutes: 60,
+        buffer_time_minutes: 0,
+        status: isCompleted ? 'completed' : 'confirmed',
+        client_name: clientName,
+        client_id: session.client?.id,
+        employee_id: null,
+        service_id: null,
+        color: isCompleted ? '#888888' : '#3b82f6',
+        activity_id: session.activity_id,
+        _isCoachSession: true,
+      } as unknown as Appointment;
+    });
+  }, [coachSessions]);
+
   const filteredAppts = useMemo(() => {
-    let list = appointments;
+    let list = isCoach ? mappedCoachSessions : appointments;
     if (filterEmployeeId !== 'all') list = list.filter((a) => a.employee_id === filterEmployeeId);
     if (filterServiceId !== 'all') list = list.filter((a) => a.service_id === filterServiceId);
     if (filterStatus !== 'all') list = list.filter((a) => a.status === filterStatus);
     return list;
-  }, [appointments, filterEmployeeId, filterServiceId, filterStatus]);
+  }, [appointments, mappedCoachSessions, isCoach, filterEmployeeId, filterServiceId, filterStatus]);
 
   const hours = activity ? generateTimeSlots(activity.opening_hours.start, activity.opening_hours.end, SLOT_INTERVAL) : [];
 
@@ -203,31 +251,42 @@ export default function CalendarPage() {
               </SelectContent>
             </Select>
           )}
-          <Select value={filterServiceId} onValueChange={setFilterServiceId}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Servizio" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i servizi</SelectItem>
-              {services.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                  {!s.is_active ? ' (inattivo)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isCoach && (
+            <Select value={filterServiceId} onValueChange={setFilterServiceId}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Servizio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i servizi</SelectItem>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                    {!s.is_active ? ' (inattivo)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="confirmed">Confermato</SelectItem>
-              <SelectItem value="pending">In attesa</SelectItem>
-              <SelectItem value="cancelled">Cancellato</SelectItem>
-              <SelectItem value="no-show">No Show</SelectItem>
-              <SelectItem value="completed">Completato</SelectItem>
+              {isCoach ? (
+                <>
+                  <SelectItem value="confirmed">Confermata</SelectItem>
+                  <SelectItem value="completed">Completata</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="confirmed">Confermato</SelectItem>
+                  <SelectItem value="pending">In attesa</SelectItem>
+                  <SelectItem value="cancelled">Cancellato</SelectItem>
+                  <SelectItem value="no-show">No Show</SelectItem>
+                  <SelectItem value="completed">Completato</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
@@ -283,24 +342,24 @@ export default function CalendarPage() {
 
                   return (
                     <div key={di} role="button" tabIndex={0}
-                      onClick={() => !busy && openNewAppt(dateStr, time)}
+                      onClick={() => !isCoach && !busy && openNewAppt(dateStr, time)}
                       onKeyDown={(e) => {
-                        if (!busy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openNewAppt(dateStr, time); }
+                        if (!isCoach && !busy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openNewAppt(dateStr, time); }
                       }}
                       className={`border-l border-border/50 p-0.5 transition-colors relative ${isNow ? 'bg-primary/5' : ''} ${isBuffer ? 'bg-warning/10' : busy ? 'bg-muted/20' : 'cursor-pointer hover:bg-primary/5'}`}
                       style={{ minHeight: `${SLOT_HEIGHT}px` }}>
                       {isBuffer && slotAppts.length === 0 && (
                         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, currentColor 3px, currentColor 4px)' }} />
                       )}
-                      {slotAppts.map((appt) => {
+                      {slotAppts.map((appt: any) => {
                         const totalSlots = Math.ceil(appt.duration_minutes / SLOT_INTERVAL);
                         const bufferSlots = Math.ceil((appt.buffer_time_minutes || 0) / SLOT_INTERVAL);
                         const emp = getEmployeeForAppt(appt);
                         const apptColor = emp?.color || appt.color || appt.service?.color || '#3b82f6';
                         return (
                           <div key={appt.id} role="button" tabIndex={0}
-                            onClick={(e) => { e.stopPropagation(); openEditAppt(appt); }}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); openEditAppt(appt); } }}
+                            onClick={(e) => { e.stopPropagation(); if (!isCoach) openEditAppt(appt); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!isCoach) openEditAppt(appt); } }}
                             className={`rounded-md text-xs cursor-pointer hover:opacity-80 ${statusColor(appt.status)}`}
                             style={{
                               backgroundColor: apptColor + '20',
