@@ -71,17 +71,9 @@ function Sparkline({ values, color = '#10b981' }: { values: number[]; color?: st
 }
 
 // ── Feedback item ──────────────────────────────────────────────────────────────
-function EnergyDots({ level }: { level: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map(i => (
-        <div
-          key={i}
-          className={`w-2.5 h-2.5 rounded-full ${i <= level ? 'bg-emerald-500' : 'bg-muted'}`}
-        />
-      ))}
-    </div>
-  );
+function EnergyEmojis({ level }: { level: number }) {
+  const emojis = Array.from({ length: level }).map(() => '⚡');
+  return <span className="text-sm">{emojis.join('')}</span>;
 }
 
 function StarRating({ rating }: { rating: number | null }) {
@@ -356,18 +348,24 @@ export default function ClientProgressPage() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-muted-foreground">Energia:</span>
-                      <EnergyDots level={fb.energy_level} />
+                      <EnergyEmojis level={fb.energy_level} />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-muted-foreground">Valutazione:</span>
                       <StarRating rating={fb.overall_rating} />
                     </div>
-                    {fb.was_tired && (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Stanco</span>
+                    {fb.was_tired ? (
+                      <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium">Stanco</span>
+                    ) : (
+                      <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium">Riposato</span>
                     )}
-                    {fb.had_difficulty && (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <AlertCircle className="w-2.5 h-2.5" /> Difficoltà
+                    {fb.had_difficulty ? (
+                      <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Difficoltà
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium">
+                        Nessuna difficoltà
                       </span>
                     )}
                   </div>

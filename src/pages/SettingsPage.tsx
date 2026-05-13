@@ -143,21 +143,26 @@ export default function SettingsPage() {
     if (!activity) return;
     setLoading(true);
     try {
+      const updatePayload: any = {
+        name, owner_name: ownerName,
+        description: description || null,
+        logo_url: logoUrl,
+        theme_color: themeColor,
+        default_appointment_duration_minutes: defaultDuration,
+        buffer_minutes: bufferMinutes,
+        host_works_in_salon: isSalone ? hostWorksInSalon : false,
+        max_advance_booking_days: maxAdvanceDays,
+        min_booking_notice_hours: minNoticeHours,
+      };
+
+      if (!isCoach) {
+        updatePayload.opening_days = openingDays;
+        updatePayload.opening_hours = { start: openStart, end: openEnd };
+      }
+
       const { error } = await supabase
         .from('activities')
-        .update({
-          name, owner_name: ownerName,
-          description: description || null,
-          logo_url: logoUrl,
-          opening_days: openingDays,
-          opening_hours: { start: openStart, end: openEnd },
-          theme_color: themeColor,
-          default_appointment_duration_minutes: defaultDuration,
-          buffer_minutes: bufferMinutes,
-          host_works_in_salon: isSalone ? hostWorksInSalon : false,
-          max_advance_booking_days: maxAdvanceDays,
-          min_booking_notice_hours: minNoticeHours,
-        })
+        .update(updatePayload)
         .eq('id', activity.id);
       if (error) throw error;
 
@@ -281,27 +286,29 @@ export default function SettingsPage() {
           </section>
         )}
 
-        {/* Opening hours */}
-        <section className="glass-card p-6">
-          <h2 className="text-lg font-semibold mb-4">{isCoach ? 'Disponibilità' : 'Orari di apertura'}</h2>
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-2 block">{isCoach ? 'Giorni lavorativi' : 'Giorni di apertura'}</Label>
-              <div className="flex flex-wrap gap-2">
-                {DAYS.map((d) => (
-                  <button key={d.value} type="button" onClick={() => toggleDay(d.value)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${openingDays.includes(d.value) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                    {d.label}
-                  </button>
-                ))}
+        {/* Opening hours - Only for Salon */}
+        {!isCoach && (
+          <section className="glass-card p-6">
+            <h2 className="text-lg font-semibold mb-4">Orari di apertura</h2>
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-2 block">Giorni di apertura</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS.map((d) => (
+                    <button key={d.value} type="button" onClick={() => toggleDay(d.value)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${openingDays.includes(d.value) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Apertura</Label><Input type="time" value={openStart} onChange={(e) => setOpenStart(e.target.value)} /></div>
+                <div><Label>Chiusura</Label><Input type="time" value={openEnd} onChange={(e) => setOpenEnd(e.target.value)} /></div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>{isCoach ? 'Inizio' : 'Apertura'}</Label><Input type="time" value={openStart} onChange={(e) => setOpenStart(e.target.value)} /></div>
-              <div><Label>{isCoach ? 'Fine' : 'Chiusura'}</Label><Input type="time" value={openEnd} onChange={(e) => setOpenEnd(e.target.value)} /></div>
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Coach-only: detailed weekly availability */}
         {isCoach && <TrainerAvailabilitySection activityId={activity.id} />}

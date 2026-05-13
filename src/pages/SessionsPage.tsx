@@ -11,6 +11,8 @@ import {
   AlertCircle, XCircle, HelpCircle, RotateCcw, Filter,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SessionFeedbackModal } from '@/components/coach/SessionFeedbackModal';
+import { SessionFeedback } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -27,6 +29,7 @@ interface SessionRow {
   notes: string | null;
   created_at: string;
   client: { id: string; name: string } | null;
+  session_feedback?: SessionFeedback[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +170,7 @@ export default function SessionsPage() {
     queryFn: async () => {
       let query = supabase
         .from('sessions')
-        .select('id, status, scheduled_at, confirmed_at, notes, created_at, client:clients(id, name)')
+        .select('id, status, scheduled_at, confirmed_at, notes, created_at, client:clients(id, name), session_feedback(id, energy_level, was_tired, had_difficulty, difficulty_notes, overall_rating, created_at, session_id, client_id, appointment_id)')
         .eq('activity_id', activityId!)
         .order('scheduled_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
@@ -396,7 +399,9 @@ export default function SessionsPage() {
 
 function SessionCard({ session, index }: { session: SessionRow; index: number }) {
   const [expanded, setExpanded] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const cfg = STATUS_CONFIG[session.status];
+  const feedback = session.session_feedback?.[0];
 
   return (
     <motion.div
@@ -440,10 +445,24 @@ function SessionCard({ session, index }: { session: SessionRow; index: number })
         </div>
 
         {/* Expand chevron */}
-        <div className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+        <div className="flex items-center gap-2">
+          {feedback && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFeedbackModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50 transition-colors"
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              <span>Feedback lasciato</span>
+            </button>
+          )}
+          <div className={`text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
       </button>
 
@@ -476,6 +495,14 @@ function SessionCard({ session, index }: { session: SessionRow; index: number })
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SessionFeedbackModal
+        open={feedbackModalOpen}
+        onClose={() => setFeedbackModalOpen(false)}
+        feedback={feedback ?? null}
+        clientName={session.client?.name}
+        sessionDate={session.scheduled_at}
+      />
     </motion.div>
   );
 }
