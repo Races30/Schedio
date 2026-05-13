@@ -170,7 +170,7 @@ export default function SessionsPage() {
     queryFn: async () => {
       let query = supabase
         .from('sessions')
-        .select('id, status, scheduled_at, confirmed_at, notes, created_at, client:clients(id, name), session_feedback(id, energy_level, was_tired, had_difficulty, difficulty_notes, overall_rating, created_at, session_id, client_id, appointment_id)')
+        .select('id, status, scheduled_at, confirmed_at, notes, created_at, client:clients(id, name)')
         .eq('activity_id', activityId!)
         .order('scheduled_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
@@ -191,6 +191,24 @@ export default function SessionsPage() {
       return (data ?? []) as SessionRow[];
     },
     enabled: !!activityId,
+  });
+
+  // ── Fetch session feedbacks (separate query to avoid RLS issues on nested joins) ──
+  const { data: feedbacks = [] } = useQuery({
+    queryKey: ['session-feedbacks', activityId, sessions.map(s => s.id).join(',')],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('session_feedback')
+        .select('id, session_id, energy_level, was_tired, had_difficulty, difficulty_notes, overall_rating, created_at, client_id, appointment_id')
+        .in('session_id', sessions.map(s => s.id));
+      
+      if (error) {
+        console.error('Error fetching feedbacks:', error);
+        return [];
+      }
+      return (data ?? []) as SessionFeedback[];
+    },
+    enabled: !!activityId && sessions.length > 0,
   });
 
   // ── Active filter labels (for pills) ─────────────────────────────────────
@@ -383,9 +401,16 @@ export default function SessionsPage() {
       ) : (
         <div className="space-y-2">
           <AnimatePresence mode="popLayout">
-            {sessions.map((session, idx) => (
-              <SessionCard key={session.id} session={session} index={idx} />
-            ))}
+            {sessions.map((session, idx) => {
+              const sessionFeedback = feedbacks.filter((f) => f.session_id === session.id);
+              return (
+                <SessionCard 
+                  key={session.id} 
+                  session={{ ...session, session_feedback: sessionFeedback }} 
+                  index={idx} 
+                />
+              );
+            })}
           </AnimatePresence>
         </div>
       )}
