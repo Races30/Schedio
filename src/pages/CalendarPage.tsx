@@ -121,7 +121,7 @@ export default function CalendarPage() {
   );
 
   const mappedCoachSessions = useMemo(() => {
-    return coachSessions.map((session: any) => {
+    return coachSessions.map((session: Record<string, any>) => {
       const dateObj = new Date(session.scheduled_at);
       const dateStr = format(dateObj, 'yyyy-MM-dd');
       const timeStr = format(dateObj, 'HH:mm');
@@ -351,7 +351,7 @@ export default function CalendarPage() {
                       {isBuffer && slotAppts.length === 0 && (
                         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, currentColor 3px, currentColor 4px)' }} />
                       )}
-                      {slotAppts.map((appt: any) => {
+                      {slotAppts.map((appt: Appointment) => {
                         const totalSlots = Math.ceil(appt.duration_minutes / SLOT_INTERVAL);
                         const bufferSlots = Math.ceil((appt.buffer_time_minutes || 0) / SLOT_INTERVAL);
                         const emp = getEmployeeForAppt(appt);

@@ -79,7 +79,6 @@ export function NotificationBell() {
   const { user, activity, userRole, clientProfile } = useAuth();
   const qc  = useQueryClient();
   const [open, setOpen] = useState(false);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Build filter based on role
   const isTrainer = userRole === 'trainer' || userRole === null;
@@ -126,34 +125,37 @@ export function NotificationBell() {
   useEffect(() => {
     if (!activity?.id) return;
 
-    // Cleanup canale precedente se esiste
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
+    // Genera nome canale sempre unico
+    const channelName = `notif-${activity.id}-${clientId ?? 'tr'}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const channelName = `notifications-${activity.id}-${clientId ?? 'trainer'}-${Date.now()}`;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `activity_id=eq.${activity.id}`,
-        },
-        () => invalidateRef.current(),
-      )
-      .subscribe();
-
-    channelRef.current = channel;
+    // Piccolo delay per assicurarsi che cleanup precedente sia completato
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      
+      channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `activity_id=eq.${activity.id}`,
+          },
+          () => invalidateRef.current(),
+        )
+        .subscribe();
+    }, 100);
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      cancelled = true;
+      clearTimeout(timer);
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

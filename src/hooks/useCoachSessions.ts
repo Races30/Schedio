@@ -24,43 +24,45 @@ interface UseCoachSessionsOptions {
 
 export function useCoachSessions({ activityId, clientId, activeOnly = false }: UseCoachSessionsOptions) {
   const qc = useQueryClient();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
     if (!activityId && !clientId) return;
 
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
     const filter = clientId ? `client_id=eq.${clientId}` : `activity_id=eq.${activityId}`;
-    const channelName = `sessions-${activityId || 'na'}-${clientId || 'nc'}-${Date.now()}`;
+    const channelName = `sessions-${activityId || 'na'}-${clientId || 'nc'}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sessions',
-          filter,
-        },
-        () => {
-          qc.invalidateQueries({ queryKey: ['sessions'] });
-          qc.invalidateQueries({ queryKey: ['coach-sessions'] });
-          qc.invalidateQueries({ queryKey: ['client-sessions'] });
-          qc.invalidateQueries({ queryKey: ['client-all-sessions'] });
-        }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-    channelRef.current = channel;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      
+      channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'sessions',
+            filter,
+          },
+          () => {
+            qc.invalidateQueries({ queryKey: ['sessions'] });
+            qc.invalidateQueries({ queryKey: ['coach-sessions'] });
+            qc.invalidateQueries({ queryKey: ['client-sessions'] });
+            qc.invalidateQueries({ queryKey: ['client-all-sessions'] });
+          }
+        )
+        .subscribe();
+    }, 100);
+
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      cancelled = true;
+      clearTimeout(timer);
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
       }
     };
   }, [activityId, clientId, qc]);

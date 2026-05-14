@@ -11,7 +11,6 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -20,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  LayoutTemplate, Trash2, UserPlus, Dumbbell, AlertCircle,
+  LayoutTemplate, Trash2, UserPlus, Dumbbell,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -79,7 +78,7 @@ function UseTemplateDialog({
         activity_id:   activityId,
         client_id:     clientId,
         name:          template.name,
-        exercises:     template.exercises,
+        exercises:     template.exercises as any,
         trainer_notes: template.trainer_notes,
         is_active:     true,
         is_template:   false,
@@ -117,7 +116,7 @@ function UseTemplateDialog({
               <span className="font-semibold text-foreground">
                 {template.template_name || template.name}
               </span>{' '}
-              ({(template.exercises as unknown[]).length} esercizi).
+              ({(template.exercises as unknown[])?.length || 0} esercizi).
             </p>
           </div>
           <div>
@@ -268,7 +267,7 @@ export function WorkoutTemplatesTab({ activityId, clients }: WorkoutTemplatesTab
       <div className="space-y-3">
         <AnimatePresence>
           {templates.map((tpl, i) => {
-            const exerciseCount = (tpl.exercises as unknown[]).length;
+            const exerciseCount = (tpl.exercises as unknown[])?.length || 0;
             const displayName = tpl.template_name || tpl.name;
 
             return (
