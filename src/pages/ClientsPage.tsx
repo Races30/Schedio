@@ -11,6 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy, MailCheck, MailX, Send, Clock, Dumbbell, BarChart2 } from 'lucide-react';
 import { Client, Appointment, Package as PackageType, ProgressEntry, ExerciseProgress, MEASURE_UNIT } from '@/types';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { formatDate, formatTime } from '@/utils/dateHelpers';
 import { CompleteSessionDialog } from '@/components/coach/CompleteSessionDialog';
@@ -20,6 +25,15 @@ import { WorkoutPlanEditor } from '@/components/coach/WorkoutPlanEditor';
 
 const OBJECTIVES = ['Dimagrimento', 'Aumento massa', 'Tonificazione', 'Postura', 'Performance', 'Recupero forma', 'Mobilità', 'Preparazione atletica'];
 const LEVELS = ['Principiante', 'Intermedio', 'Avanzato', 'Esperto'];
+
+const METRICS = [
+  { id: 'weight', label: 'Peso', unit: 'kg', icon: Weight },
+  { id: 'waist', label: 'Girovita', unit: 'cm', icon: Ruler },
+  { id: 'hips', label: 'Fianchi', unit: 'cm', icon: Ruler },
+  { id: 'chest', label: 'Petto', unit: 'cm', icon: Ruler },
+  { id: 'arms', label: 'Braccia', unit: 'cm', icon: Ruler },
+  { id: 'thighs', label: 'Cosce', unit: 'cm', icon: Ruler },
+];
 
 export default function ClientsPage() {
   const { activity } = useAuth();
@@ -365,6 +379,7 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [planEditorOpen, setPlanEditorOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState('weight');
   const { activity } = useAuth();
 
   const { data: appointments = [] } = useQuery({
@@ -683,25 +698,80 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               <ProgressForm clientId={client.id} activityId={activityId} onDone={() => { setShowProgressForm(false); queryClient.invalidateQueries({ queryKey: ['client-progress', client.id] }); }} />
             )}
 
-            {/* Weight chart (simple bar) */}
+            {/* Metrics Chart */}
             {progressEntries.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-1"><Weight className="w-4 h-4" /> Andamento peso</h4>
-                <div className="flex items-end gap-1 h-24">
-                  {progressEntries.slice(0, 12).reverse().map((entry) => {
-                    if (!entry.weight) return null;
-                    const weights = progressEntries.filter(e => e.weight).map(e => e.weight!);
-                    const min = Math.min(...weights) * 0.95;
-                    const max = Math.max(...weights) * 1.05;
-                    const range = max - min || 1;
-                    const height = ((entry.weight - min) / range) * 100;
+              <div className="space-y-3 p-4 border rounded-xl bg-muted/10">
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  {METRICS.map(m => {
+                    const isActive = selectedMetric === m.id;
                     return (
-                      <div key={entry.id} className="flex-1 flex flex-col items-center gap-1" title={`${entry.measurement_date}: ${entry.weight} kg`}>
-                        <div className="w-full bg-primary/70 rounded-t" style={{ height: `${Math.max(height, 5)}%` }} />
-                        <span className="text-[10px] text-muted-foreground">{entry.weight}</span>
-                      </div>
+                      <button
+                        key={m.id}
+                        onClick={() => setSelectedMetric(m.id)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all
+                          ${isActive 
+                            ? 'bg-primary text-white shadow-sm' 
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          }`}
+                      >
+                        {m.label}
+                      </button>
                     );
                   })}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+                    <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                    Andamento {METRICS.find(m => m.id === selectedMetric)?.label} ({METRICS.find(m => m.id === selectedMetric)?.unit})
+                  </div>
+                  
+                  <div className="h-40 w-full mt-2">
+                    {(() => {
+                      const chartData = [...progressEntries]
+                        .filter(e => e[selectedMetric as keyof ProgressEntry] !== null)
+                        .sort((a, b) => a.measurement_date.localeCompare(b.measurement_date))
+                        .slice(-10);
+
+                      if (chartData.length < 2) {
+                        return (
+                          <div className="h-full flex items-center justify-center border border-dashed rounded-lg bg-muted/20 text-[10px] text-muted-foreground text-center p-4">
+                            Aggiungi almeno 2 misurazioni di {METRICS.find(m => m.id === selectedMetric)?.label.toLowerCase()} per visualizzare il grafico.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                            <XAxis 
+                              dataKey="measurement_date" 
+                              tick={{ fontSize: 9 }} 
+                              tickFormatter={(date) => format(new Date(date), 'dd MMM', { locale: it })}
+                            />
+                            <YAxis 
+                              hide 
+                              domain={['dataMin - (dataMax - dataMin) * 0.1', 'dataMax + (dataMax - dataMin) * 0.1']} 
+                            />
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px' }}
+                              labelFormatter={(date) => format(new Date(date), 'dd MMMM yyyy', { locale: it })}
+                              formatter={(value: number) => [`${value} ${METRICS.find(m => m.id === selectedMetric)?.unit}`, METRICS.find(m => m.id === selectedMetric)?.label]}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey={selectedMetric} 
+                              stroke="hsl(var(--primary))" 
+                              strokeWidth={2} 
+                              dot={{ fill: 'hsl(var(--primary))', r: 3 }}
+                              activeDot={{ r: 5, strokeWidth: 0 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
