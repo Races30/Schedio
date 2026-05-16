@@ -80,17 +80,17 @@ function StatCard({ icon: Icon, label, value, sub, trend, color = 'text-primary'
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.35 }}
-      className="glass-card p-5 flex flex-col gap-3"
+      className="glass-card p-4 sm:p-5 min-h-[150px] flex flex-col gap-3"
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground font-medium">{label}</span>
+        <span className="text-xs sm:text-sm text-muted-foreground font-medium leading-snug">{label}</span>
         <div className={`w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center ${color}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
-      <div className="text-3xl font-bold tracking-tight">{value}</div>
+      <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight break-words">{value}</div>
       {(sub || hasTrend) && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground leading-snug">
           {hasTrend && (
             <span className={`flex items-center gap-0.5 font-semibold ${trendColor}`}>
               <TrendIcon className="w-3.5 h-3.5" />

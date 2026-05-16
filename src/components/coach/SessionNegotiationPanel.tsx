@@ -746,6 +746,7 @@ export function SessionNegotiationPanel({
   const confirmed = sessions.filter(s => s.status === 'confermata');
   const closed = sessions.filter(s => ['rifiutata', 'annullata'].includes(s.status));
   const completed = sessions.filter(s => s.status === 'completata');
+  const [showAllSessions, setShowAllSessions] = useState(false);
 
   const pending = active.filter(s => {
     // Sessions where it's MY turn
@@ -758,6 +759,13 @@ export function SessionNegotiationPanel({
     if (!lastProp) return role !== 'trainer';
     return lastProp.proposed_by === role;
   });
+  const orderedSessions = [...pending, ...waiting, ...confirmed, ...completed, ...closed];
+  const visibleSessionIds = new Set(
+    (showAllSessions ? orderedSessions : orderedSessions.slice(0, 3)).map(s => s.id)
+  );
+  const hiddenCount = Math.max(orderedSessions.length - 3, 0);
+  const visibleOnly = (list: CoachSession[]) =>
+    showAllSessions ? list : list.filter(s => visibleSessionIds.has(s.id));
 
   return (
     <div className="space-y-4">
@@ -778,53 +786,65 @@ export function SessionNegotiationPanel({
       )}
 
       {/* Pending my action */}
-      {pending.length > 0 && (
+      {visibleOnly(pending).length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> In attesa di risposta
           </p>
-          {pending.map(s => <SessionCard key={s.id} session={s} role={role} />)}
+          {visibleOnly(pending).map(s => <SessionCard key={s.id} session={s} role={role} />)}
         </div>
       )}
 
       {/* Waiting for other party */}
-      {waiting.length > 0 && (
+      {visibleOnly(waiting).length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1">
             <Clock className="w-3 h-3" /> In attesa dell'altro
           </p>
-          {waiting.map(s => <SessionCard key={s.id} session={s} role={role} />)}
+          {visibleOnly(waiting).map(s => <SessionCard key={s.id} session={s} role={role} />)}
         </div>
       )}
 
       {/* Confirmed sessions */}
-      {confirmed.length > 0 && (
+      {visibleOnly(confirmed).length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Sessioni confermate
           </p>
-          {confirmed.map(s => <SessionCard key={s.id} session={s} role={role} />)}
+          {visibleOnly(confirmed).map(s => <SessionCard key={s.id} session={s} role={role} />)}
         </div>
       )}
 
       {/* Completed */}
-      {completed.length > 0 && (
+      {visibleOnly(completed).length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 flex items-center gap-1">
             🏁 Completate
           </p>
-          {completed.map(s => <SessionCard key={s.id} session={s} role={role} />)}
+          {visibleOnly(completed).map(s => <SessionCard key={s.id} session={s} role={role} />)}
         </div>
       )}
 
       {/* Closed (rejected/cancelled) */}
-      {closed.length > 0 && (
+      {visibleOnly(closed).length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700 flex items-center gap-1">
             <XCircle className="w-3 h-3" /> Chiuse
           </p>
-          {closed.map(s => <SessionCard key={s.id} session={s} role={role} />)}
+          {visibleOnly(closed).map(s => <SessionCard key={s.id} session={s} role={role} />)}
         </div>
+      )}
+
+      {hiddenCount > 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full"
+          onClick={() => setShowAllSessions(prev => !prev)}
+        >
+          {showAllSessions ? 'Mostra meno' : `Vedi tutte (${orderedSessions.length})`}
+        </Button>
       )}
 
       {/* Empty state */}

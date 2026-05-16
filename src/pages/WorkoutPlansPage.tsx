@@ -68,7 +68,7 @@ function PlanCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className="glass-card p-5 flex items-center gap-4"
+      className="glass-card p-4 sm:p-5 flex items-start gap-3 sm:gap-4"
     >
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
@@ -77,15 +77,15 @@ function PlanCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-sm truncate">{plan.name}</span>
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="font-semibold text-sm leading-snug break-words">{plan.name}</span>
           {plan.is_active && (
             <span className="text-xs bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
               <CheckCircle2 className="w-2.5 h-2.5" /> Attiva
             </span>
           )}
         </div>
-        <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-muted-foreground mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
           <span className="flex items-center gap-1">
             <User className="w-3 h-3" />
             {plan.client?.name ?? 'Cliente rimosso'}

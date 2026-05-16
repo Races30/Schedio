@@ -20,6 +20,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('all');
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const [showAllTodaySessions, setShowAllTodaySessions] = useState(false);
+  const [showAllUpcomingSessions, setShowAllUpcomingSessions] = useState(false);
   const today = new Date().toISOString().split('T')[0];
 
   const isSalone = activity?.category === 'salone';
@@ -187,6 +189,8 @@ export default function Dashboard() {
   const filterByEmployee = useCallback((list: Appointment[]) => filterEmployeeId === 'all' ? list : list.filter((a) => a.employee_id === filterEmployeeId), [filterEmployeeId]);
   const todayFiltered = useMemo(() => filterByEmployee(todayAppts), [todayAppts, filterByEmployee]);
   const upcomingFiltered = useMemo(() => filterByEmployee(upcomingAppts), [upcomingAppts, filterByEmployee]);
+  const visibleToday = showAllTodaySessions ? todayFiltered : todayFiltered.slice(0, 3);
+  const visibleUpcoming = showAllUpcomingSessions ? upcomingFiltered : upcomingFiltered.slice(0, 3);
   const getEmp = (id: string | null) => employeesRaw.find((e) => e.id === id);
 
   if (!activity) return null;
@@ -351,7 +355,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-sm py-8 text-center">Nessun {isSalone ? 'appuntamento' : 'sessione'} oggi</p>
           ) : (
             <div className="space-y-3">
-              {todayFiltered.map(a => {
+              {visibleToday.map(a => {
                 const emp = getEmp(a.employee_id);
                 const canComplete = isCoach && a.status === 'confirmed';
                 return (
@@ -379,6 +383,17 @@ export default function Dashboard() {
                   </div>
                 );
               })}
+              {todayFiltered.length > 3 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAllTodaySessions(prev => !prev)}
+                >
+                  {showAllTodaySessions ? 'Mostra meno' : `Vedi tutte (${todayFiltered.length})`}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -389,7 +404,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-sm py-8 text-center">Nessun {isSalone ? 'appuntamento' : 'sessione'} futura</p>
           ) : (
             <div className="space-y-3">
-              {upcomingFiltered.map(a => {
+              {visibleUpcoming.map(a => {
                 const emp = getEmp(a.employee_id);
                 return (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
@@ -404,6 +419,17 @@ export default function Dashboard() {
                   </div>
                 );
               })}
+              {upcomingFiltered.length > 3 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAllUpcomingSessions(prev => !prev)}
+                >
+                  {showAllUpcomingSessions ? 'Mostra meno' : `Vedi tutte (${upcomingFiltered.length})`}
+                </Button>
+              )}
             </div>
           )}
         </div>

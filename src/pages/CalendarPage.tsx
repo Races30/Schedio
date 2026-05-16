@@ -32,11 +32,25 @@ const SLOT_HEIGHT = 36; // px per 15-min slot
 
 type ViewMode = 'day' | 'week';
 
+type CalendarCoachSession = {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  activity_id: string;
+  client?: {
+    id?: string;
+    name?: string | null;
+    surname?: string | null;
+    last_name?: string | null;
+  } | null;
+};
+
 export default function CalendarPage() {
   const { activity } = useAuth();
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [isMobileCalendar, setIsMobileCalendar] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
   const [editAppt, setEditAppt] = useState<Appointment | null>(null);
@@ -46,6 +60,13 @@ export default function CalendarPage() {
 
   const isSalone = activity?.category === 'salone';
   const isCoach = activity?.category === 'coach';
+
+  useEffect(() => {
+    if (window.innerWidth < 640) {
+      setViewMode('day');
+      setIsMobileCalendar(true);
+    }
+  }, []);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -121,7 +142,7 @@ export default function CalendarPage() {
   );
 
   const mappedCoachSessions = useMemo(() => {
-    return coachSessions.map((session: Record<string, any>) => {
+    return (coachSessions as CalendarCoachSession[]).map((session) => {
       const dateObj = new Date(session.scheduled_at);
       const dateStr = format(dateObj, 'yyyy-MM-dd');
       const timeStr = format(dateObj, 'HH:mm');
@@ -297,16 +318,18 @@ export default function CalendarPage() {
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Giorno
             </button>
-            <button type="button" onClick={() => setViewMode('week')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-              Settimana
-            </button>
+            {!isMobileCalendar && (
+              <button type="button" onClick={() => setViewMode('week')}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                Settimana
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div className="glass-card overflow-x-auto">
-        <div className={`min-w-[600px] ${viewMode === 'day' ? 'min-w-[400px]' : ''}`}>
+        <div className={viewMode === 'day' ? 'min-w-[360px]' : 'min-w-[700px]'}>
           <div className={`grid border-b border-border ${viewMode === 'day' ? 'grid-cols-[80px_1fr]' : 'grid-cols-[80px_repeat(7,1fr)]'}`}>
             <div className="p-2" />
             {displayDays.map((day, i) => {
@@ -352,6 +375,7 @@ export default function CalendarPage() {
                         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, currentColor 3px, currentColor 4px)' }} />
                       )}
                       {slotAppts.map((appt: Appointment) => {
+                        const isCoachSession = Boolean((appt as Appointment & { _isCoachSession?: boolean })._isCoachSession);
                         const totalSlots = Math.ceil(appt.duration_minutes / SLOT_INTERVAL);
                         const bufferSlots = Math.ceil((appt.buffer_time_minutes || 0) / SLOT_INTERVAL);
                         const emp = getEmployeeForAppt(appt);
@@ -360,22 +384,22 @@ export default function CalendarPage() {
                           <div key={appt.id} role="button" tabIndex={0}
                             onClick={(e) => { e.stopPropagation(); if (!isCoach) openEditAppt(appt); }}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!isCoach) openEditAppt(appt); } }}
-                            className={`rounded-md text-xs cursor-pointer hover:opacity-80 ${statusColor(appt.status)}`}
+                            className={`rounded-md text-[11px] sm:text-xs cursor-pointer hover:opacity-80 overflow-hidden ${statusColor(appt.status)}`}
                             style={{
                               backgroundColor: apptColor + '20',
-                              height: `${totalSlots * SLOT_HEIGHT - 4}px`,
+                              height: `${(isCoachSession ? 1 : totalSlots) * SLOT_HEIGHT - 4}px`,
                               position: 'relative',
                               zIndex: 10,
                               padding: '2px 6px',
                             }}>
-                            <div className="font-medium truncate" style={{ color: apptColor }}>
+                            <div className="font-medium truncate leading-4" style={{ color: apptColor }}>
                               {appt.client?.name || appt.client_name || 'Cliente'}
                             </div>
-                            <div className="truncate text-muted-foreground">
-                              {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
+                            <div className="truncate text-muted-foreground leading-4">
+                              {isCoachSession ? formatTime(appt.start_time) : `${formatTime(appt.start_time)} - ${formatTime(appt.end_time)}`}
                               {emp && <span className="ml-1">• {emp.name}</span>}
                             </div>
-                            {bufferSlots > 0 && (
+                            {!isCoachSession && bufferSlots > 0 && (
                               <div className="absolute bottom-0 left-0 right-0 opacity-30 rounded-b-md"
                                 style={{
                                   height: `${bufferSlots * SLOT_HEIGHT}px`,

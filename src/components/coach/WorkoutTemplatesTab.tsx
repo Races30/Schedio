@@ -78,7 +78,7 @@ function UseTemplateDialog({
         activity_id:   activityId,
         client_id:     clientId,
         name:          template.name,
-        exercises:     template.exercises as any,
+        exercises:     template.exercises,
         trainer_notes: template.trainer_notes,
         is_active:     true,
         is_template:   false,
@@ -277,7 +277,7 @@ export function WorkoutTemplatesTab({ activityId, clients }: WorkoutTemplatesTab
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ delay: i * 0.04 }}
-                className="glass-card p-5 flex items-center gap-4"
+                className="glass-card p-4 sm:p-5 flex items-start gap-3 sm:gap-4"
               >
                 {/* Icon */}
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -286,14 +286,14 @@ export function WorkoutTemplatesTab({ activityId, clients }: WorkoutTemplatesTab
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate">{displayName}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                  <div className="font-semibold text-sm leading-snug break-words">{displayName}</div>
+                  <div className="text-sm text-muted-foreground mt-1 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
                     <span className="flex items-center gap-1">
                       <Dumbbell className="w-3 h-3" />
                       {exerciseCount} esercizi
                     </span>
                     {tpl.trainer_notes && (
-                      <span className="truncate max-w-[200px] italic">· {tpl.trainer_notes}</span>
+                      <span className="italic break-words sm:max-w-[200px]">· {tpl.trainer_notes}</span>
                     )}
                   </div>
                 </div>
