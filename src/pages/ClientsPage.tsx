@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -9,8 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy, MailCheck, MailX, Send, Clock, Dumbbell, BarChart2 } from 'lucide-react';
-import { Client, Appointment, Package as PackageType, ProgressEntry, ExerciseProgress, MEASURE_UNIT } from '@/types';
+import { Plus, Search, Phone, Mail, Edit, Target, TrendingUp, Package, Weight, Ruler, CheckCircle2, Copy, MailCheck, MailX, Send, Clock, Dumbbell, BarChart2, CalendarDays } from 'lucide-react';
+import { Client, Appointment, Package as PackageType, ProgressEntry, ExerciseProgress, MEASURE_UNIT, WeeklyProgram, WeeklyProgramDays } from '@/types';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
@@ -34,6 +34,57 @@ const METRICS = [
   { id: 'arms', label: 'Braccia', unit: 'cm', icon: Ruler },
   { id: 'thighs', label: 'Cosce', unit: 'cm', icon: Ruler },
 ];
+
+const WEEK_DAYS = [
+  { key: '1', short: 'Lun', label: 'Lunedi' },
+  { key: '2', short: 'Mar', label: 'Martedi' },
+  { key: '3', short: 'Mer', label: 'Mercoledi' },
+  { key: '4', short: 'Gio', label: 'Giovedi' },
+  { key: '5', short: 'Ven', label: 'Venerdi' },
+  { key: '6', short: 'Sab', label: 'Sabato' },
+  { key: '0', short: 'Dom', label: 'Domenica' },
+];
+
+const emptyWeeklyProgramDays = (): WeeklyProgramDays =>
+  WEEK_DAYS.reduce((acc, day) => ({ ...acc, [day.key]: '' }), {});
+
+const normalizeWeeklyProgramDays = (days: unknown): WeeklyProgramDays => {
+  const source = days && typeof days === 'object' && !Array.isArray(days)
+    ? days as Record<string, unknown>
+    : {};
+
+  return WEEK_DAYS.reduce<WeeklyProgramDays>((acc, day) => {
+    acc[day.key] = typeof source[day.key] === 'string' ? source[day.key] as string : '';
+    return acc;
+  }, {});
+};
+
+type WeeklyProgramRow = Omit<WeeklyProgram, 'days' | 'is_active'> & {
+  days: unknown;
+  is_active: boolean | null;
+};
+type WeeklyProgramInsert = {
+  activity_id: string;
+  client_id: string;
+  days: WeeklyProgramDays;
+  is_active?: boolean;
+};
+type WeeklyProgramResult<T> = PromiseLike<{ data: T; error: Error | null }>;
+type WeeklyProgramMutationResult = PromiseLike<{ error: Error | null }>;
+type WeeklyProgramSelectFilter = {
+  eq(column: string, value: string | boolean): WeeklyProgramSelectFilter;
+  order(column: string, options?: { ascending?: boolean }): WeeklyProgramSelectFilter;
+  limit(count: number): WeeklyProgramSelectFilter;
+  maybeSingle(): WeeklyProgramResult<WeeklyProgramRow | null>;
+};
+type WeeklyProgramTable = {
+  select(columns: string): WeeklyProgramSelectFilter;
+  insert(values: WeeklyProgramInsert): WeeklyProgramMutationResult;
+  update(values: { days: WeeklyProgramDays }): { eq(column: string, value: string): WeeklyProgramMutationResult };
+};
+
+const weeklyProgramsTable = () =>
+  supabase.from('weekly_programs' as never) as unknown as WeeklyProgramTable;
 
 export default function ClientsPage() {
   const { activity } = useAuth();
@@ -374,7 +425,7 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'info' | 'progress' | 'exercises'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'program' | 'progress' | 'exercises'>('info');
   const [showProgressForm, setShowProgressForm] = useState(false);
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [resendingInvite, setResendingInvite] = useState(false);
@@ -418,6 +469,23 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
         .eq('client_id', client.id)
         .order('recorded_at', { ascending: false });
       return (data || []) as ExerciseProgress[];
+    },
+    enabled: !!isCoach,
+  });
+
+  const { data: weeklyProgram = null } = useQuery<WeeklyProgram | null>({
+    queryKey: ['weekly-program', client.id],
+    queryFn: async () => {
+      const { data, error } = await weeklyProgramsTable()
+        .select('*')
+        .eq('client_id', client.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? { ...data, days: normalizeWeeklyProgramDays(data.days) } as WeeklyProgram : null;
     },
     enabled: !!isCoach,
   });
@@ -489,6 +557,9 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
             <button onClick={() => setActiveTab('exercises')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'exercises' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
               <TrendingUp className="w-3.5 h-3.5" />Esercizi
               {exerciseProgressRaw.length > 0 && <span className="ml-1 bg-primary text-primary-foreground text-[10px] px-1.5 rounded-full">{exerciseProgressRaw.length}</span>}
+            </button>
+            <button onClick={() => setActiveTab('program')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'program' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+              <CalendarDays className="w-3.5 h-3.5" />Programma
             </button>
             <button onClick={() => setActiveTab('progress')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'progress' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>Misure</button>
           </div>
@@ -682,6 +753,14 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'program' && isCoach && (
+          <WeeklyProgramEditor
+            clientId={client.id}
+            activityId={activityId}
+            program={weeklyProgram}
+          />
         )}
 
         {/* Progress tab (coach only) */}
@@ -897,6 +976,107 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
 }
 
 /* ─── Progress Entry Form ─── */
+function WeeklyProgramEditor({ clientId, activityId, program }: {
+  clientId: string;
+  activityId: string;
+  program: WeeklyProgram | null;
+}) {
+  const queryClient = useQueryClient();
+  const [days, setDays] = useState<WeeklyProgramDays>(emptyWeeklyProgramDays);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setDays(program ? normalizeWeeklyProgramDays(program.days) : emptyWeeklyProgramDays());
+  }, [program]);
+
+  const createProgram = async () => {
+    setLoading(true);
+    try {
+      const { error } = await weeklyProgramsTable().insert({
+        activity_id: activityId,
+        client_id: clientId,
+        days: emptyWeeklyProgramDays(),
+        is_active: true,
+      });
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ['weekly-program', clientId] });
+      toast.success('Programma settimanale creato');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante la creazione del programma');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveProgram = async () => {
+    if (!program) return;
+    setLoading(true);
+    try {
+      const { error } = await weeklyProgramsTable()
+        .update({ days })
+        .eq('id', program.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ['weekly-program', clientId] });
+      toast.success('Programma salvato');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante il salvataggio del programma');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!program) {
+    return (
+      <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+          <CalendarDays className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="font-semibold">Nessun programma settimanale</h3>
+          <p className="text-sm text-muted-foreground mt-1">Crea una griglia semplice per organizzare i focus di ogni giorno.</p>
+        </div>
+        <Button onClick={createProgram} disabled={loading} className="bg-primary hover:bg-primary/90">
+          <Plus className="w-4 h-4 mr-1" />
+          {loading ? 'Creazione...' : 'Crea programma settimanale'}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-primary" />
+          Programma settimanale
+        </h3>
+        <p className="text-sm text-muted-foreground mt-1">Inserisci il focus libero per ogni giorno.</p>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {WEEK_DAYS.map(day => (
+          <div key={day.key} className="rounded-lg border border-primary/15 bg-primary/5 p-3 space-y-2">
+            <Label htmlFor={`weekly-program-${day.key}`} className="text-xs font-semibold text-primary">
+              {day.label}
+            </Label>
+            <Input
+              id={`weekly-program-${day.key}`}
+              value={days[day.key] || ''}
+              onChange={e => setDays(prev => ({ ...prev, [day.key]: e.target.value }))}
+              placeholder="Riposo"
+              className="bg-background"
+            />
+          </div>
+        ))}
+      </div>
+
+      <Button onClick={saveProgram} disabled={loading} className="w-full bg-primary hover:bg-primary/90">
+        {loading ? 'Salvataggio...' : 'Salva programma'}
+      </Button>
+    </div>
+  );
+}
+
 function ProgressForm({ clientId, activityId, onDone }: { clientId: string; activityId: string; onDone: () => void }) {
   const queryClient = useQueryClient();
   const [weight, setWeight] = useState('');

@@ -235,6 +235,19 @@ export interface WorkoutCompletion {
   created_at: string;
 }
 
+export type WeeklyProgramDays = Record<string, string>;
+
+export interface WeeklyProgram {
+  id: string;
+  activity_id: string;
+  client_id: string;
+  name: string;
+  days: WeeklyProgramDays;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface SessionFeedback {
   id: string;
   session_id: string | null;

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { 
   LogOut, Calendar, Clock, Play, TrendingUp, CheckCircle2, Dumbbell,
   Inbox, ChevronRight, SkipForward, Ruler, Weight, Plus, ArrowUp, ArrowDown, Minus, Info,
-  Activity
+  Activity, CalendarDays
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Client, ExerciseProgress, MEASURE_UNIT, WorkoutPlan } from '@/types';
+import { Client, ExerciseProgress, MEASURE_UNIT, WorkoutPlan, WeeklyProgram, WeeklyProgramDays } from '@/types';
 import { ProgressIndicator } from '@/components/coach/ProgressIndicator';
 import { SessionNegotiationPanel } from '@/components/coach/SessionNegotiationPanel';
 import { SessionFeedbackForm } from '@/components/coach/SessionFeedbackForm';
@@ -41,6 +41,45 @@ const METRICS = [
   { id: 'arms', label: 'Braccia', unit: 'cm', icon: Ruler },
   { id: 'thighs', label: 'Cosce', unit: 'cm', icon: Ruler },
 ];
+
+const WEEK_DAYS = [
+  { key: '1', short: 'Lun', label: 'Lunedi' },
+  { key: '2', short: 'Mar', label: 'Martedi' },
+  { key: '3', short: 'Mer', label: 'Mercoledi' },
+  { key: '4', short: 'Gio', label: 'Giovedi' },
+  { key: '5', short: 'Ven', label: 'Venerdi' },
+  { key: '6', short: 'Sab', label: 'Sabato' },
+  { key: '0', short: 'Dom', label: 'Domenica' },
+];
+
+const normalizeWeeklyProgramDays = (days: unknown): WeeklyProgramDays => {
+  const source = days && typeof days === 'object' && !Array.isArray(days)
+    ? days as Record<string, unknown>
+    : {};
+
+  return WEEK_DAYS.reduce<WeeklyProgramDays>((acc, day) => {
+    acc[day.key] = typeof source[day.key] === 'string' ? source[day.key] as string : '';
+    return acc;
+  }, {});
+};
+
+type WeeklyProgramRow = Omit<WeeklyProgram, 'days' | 'is_active'> & {
+  days: unknown;
+  is_active: boolean | null;
+};
+type WeeklyProgramResult<T> = PromiseLike<{ data: T; error: Error | null }>;
+type WeeklyProgramSelectFilter = {
+  eq(column: string, value: string | boolean): WeeklyProgramSelectFilter;
+  order(column: string, options?: { ascending?: boolean }): WeeklyProgramSelectFilter;
+  limit(count: number): WeeklyProgramSelectFilter;
+  maybeSingle(): WeeklyProgramResult<WeeklyProgramRow | null>;
+};
+type WeeklyProgramTable = {
+  select(columns: string): WeeklyProgramSelectFilter;
+};
+
+const weeklyProgramsTable = () =>
+  supabase.from('weekly_programs' as never) as unknown as WeeklyProgramTable;
 
 export default function ClientDashboard() {
   const { clientProfile, signOut } = useAuth();
@@ -85,6 +124,23 @@ export default function ClientDashboard() {
         .limit(1)
         .maybeSingle();
       return data as WorkoutPlan | null;
+    },
+    enabled: !!client,
+  });
+
+  const { data: weeklyProgram = null } = useQuery<WeeklyProgram | null>({
+    queryKey: ['weekly-program', client?.id],
+    queryFn: async () => {
+      const { data, error } = await weeklyProgramsTable()
+        .select('*')
+        .eq('client_id', client!.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? { ...data, days: normalizeWeeklyProgramDays(data.days) } as WeeklyProgram : null;
     },
     enabled: !!client,
   });
@@ -282,6 +338,47 @@ export default function ClientDashboard() {
 
 
         {/* ─ Card 3: Allenamento autonomo ─ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}
+          className="bg-white dark:bg-card border border-emerald-200 dark:border-emerald-900 rounded-2xl p-4 shadow-sm"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <CalendarDays className="w-4 h-4 text-emerald-600" />
+            <span className="text-sm font-semibold">Il mio programma settimanale</span>
+          </div>
+
+          {weeklyProgram ? (
+            <div className="grid grid-cols-2 gap-2">
+              {WEEK_DAYS.map(day => {
+                const isToday = String(new Date().getDay()) === day.key;
+                const value = weeklyProgram.days[day.key]?.trim();
+
+                return (
+                  <div
+                    key={day.key}
+                    className={`rounded-xl border p-3 min-h-20 ${
+                      isToday
+                        ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500/30 dark:bg-emerald-950/30'
+                        : 'border-border bg-muted/20'
+                    }`}
+                  >
+                    <div className={`text-xs font-bold uppercase ${isToday ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}`}>
+                      {day.short}
+                    </div>
+                    <div className={`mt-2 text-sm font-medium ${value ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {value || 'Riposo'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Il tuo trainer non ha ancora creato un programma
+            </p>
+          )}
+        </motion.div>
+
         {workoutPlan && (
           <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
