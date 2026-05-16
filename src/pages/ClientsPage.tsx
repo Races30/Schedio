@@ -695,7 +695,11 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
             </div>
 
             {showProgressForm && (
-              <ProgressForm clientId={client.id} activityId={activityId} onDone={() => { setShowProgressForm(false); queryClient.invalidateQueries({ queryKey: ['client-progress', client.id] }); }} />
+              <ProgressForm 
+                clientId={client.id} 
+                activityId={activityId} 
+                onDone={() => setShowProgressForm(false)} 
+              />
             )}
 
             {/* Metrics Chart */}
@@ -894,6 +898,7 @@ function ClientDetailDialog({ client, onClose, activityId, isCoach }: {
 
 /* ─── Progress Entry Form ─── */
 function ProgressForm({ clientId, activityId, onDone }: { clientId: string; activityId: string; onDone: () => void }) {
+  const queryClient = useQueryClient();
   const [weight, setWeight] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
@@ -914,6 +919,9 @@ function ProgressForm({ clientId, activityId, onDone }: { clientId: string; acti
         notes: notes || null,
       });
       if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['client-progress', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['client-body-progress', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['progress-entries', clientId] });
       toast.success('Misurazione salvata');
       onDone();
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setLoading(false); }

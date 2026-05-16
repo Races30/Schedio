@@ -614,6 +614,7 @@ function MeasurementForm({ clientId, activityId, onDone }: { clientId: string; a
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ['client-body-progress', clientId] });
       qc.invalidateQueries({ queryKey: ['client-progress', clientId] });
+      qc.invalidateQueries({ queryKey: ['progress-entries', clientId] });
       onDone();
     } catch (err) {
       console.error("Error saving measurement:", err);
