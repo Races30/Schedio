@@ -14,9 +14,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import {
+import { 
   LogOut, Calendar, Clock, Play, TrendingUp, CheckCircle2, Dumbbell,
-  Inbox, ChevronRight, SkipForward, Ruler, Weight, Plus, ArrowUp, ArrowDown, Minus, Info
+  Inbox, ChevronRight, SkipForward, Ruler, Weight, Plus, ArrowUp, ArrowDown, Minus, Info,
+  Activity
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -31,6 +32,15 @@ import { SessionNegotiationPanel } from '@/components/coach/SessionNegotiationPa
 import { SessionFeedbackForm } from '@/components/coach/SessionFeedbackForm';
 import { useCoachSessions } from '@/hooks/useCoachSessions';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const METRICS = [
+  { id: 'weight', label: 'Peso', unit: 'kg', icon: Weight },
+  { id: 'waist', label: 'Girovita', unit: 'cm', icon: Ruler },
+  { id: 'hips', label: 'Fianchi', unit: 'cm', icon: Ruler },
+  { id: 'chest', label: 'Petto', unit: 'cm', icon: Ruler },
+  { id: 'arms', label: 'Braccia', unit: 'cm', icon: Ruler },
+  { id: 'thighs', label: 'Cosce', unit: 'cm', icon: Ruler },
+];
 
 export default function ClientDashboard() {
   const { clientProfile, signOut } = useAuth();
@@ -157,6 +167,7 @@ export default function ClientDashboard() {
   });
 
   const [isAddingMeasurement, setIsAddingMeasurement] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState('weight');
 
   if (!client) return null;
 
@@ -447,41 +458,80 @@ export default function ClientDashboard() {
                 <LatestMeasurementDisplay entries={bodyProgress} />
               </div>
 
-              {/* Weight Chart */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <Weight className="w-3 h-3" /> Andamento Peso (kg)
+              {/* Metric Selector */}
+              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
+                {METRICS.map(m => {
+                  const isActive = selectedMetric === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setSelectedMetric(m.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5
+                        ${isActive 
+                          ? 'bg-emerald-600 text-white shadow-sm' 
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100/50'
+                        }`}
+                    >
+                      <m.icon className="w-3 h-3" />
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Chart Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Activity className="w-3 h-3 text-emerald-500" /> 
+                    Andamento {METRICS.find(m => m.id === selectedMetric)?.label} ({METRICS.find(m => m.id === selectedMetric)?.unit})
+                  </div>
                 </div>
+
                 <div className="h-48 w-full">
-                  {bodyProgress.length >= 2 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={bodyProgress.slice(-10)}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                        <XAxis 
-                          dataKey="measurement_date" 
-                          tick={{ fontSize: 10 }} 
-                          tickFormatter={(date) => format(new Date(date), 'dd MMM', { locale: it })}
-                        />
-                        <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
-                        <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                          labelFormatter={(date) => format(new Date(date), 'dd MMMM yyyy', { locale: it })}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="weight" 
-                          stroke="#10b981" 
-                          strokeWidth={3} 
-                          dot={{ fill: '#10b981', r: 4 }}
-                          activeDot={{ r: 6, strokeWidth: 0 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center border border-dashed rounded-xl bg-muted/20 text-xs text-muted-foreground text-center p-4">
-                      Aggiungi almeno 2 misurazioni per vedere il grafico dell'andamento.
-                    </div>
-                  )}
+                  {(() => {
+                    const filteredData = bodyProgress
+                      .filter(entry => entry[selectedMetric] !== null)
+                      .slice(-10);
+
+                    if (filteredData.length < 2) {
+                      return (
+                        <div className="h-full flex items-center justify-center border border-dashed rounded-xl bg-muted/20 text-xs text-muted-foreground text-center p-4">
+                          Aggiungi almeno 2 misurazioni di {METRICS.find(m => m.id === selectedMetric)?.label.toLowerCase()} per vedere il grafico.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={filteredData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                          <XAxis 
+                            dataKey="measurement_date" 
+                            tick={{ fontSize: 10 }} 
+                            tickFormatter={(date) => format(new Date(date), 'dd MMM', { locale: it })}
+                          />
+                          <YAxis 
+                            hide 
+                            domain={['dataMin - (dataMax - dataMin) * 0.1', 'dataMax + (dataMax - dataMin) * 0.1']} 
+                          />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            labelFormatter={(date) => format(new Date(date), 'dd MMMM yyyy', { locale: it })}
+                            formatter={(value: number) => [`${value} ${METRICS.find(m => m.id === selectedMetric)?.unit}`, METRICS.find(m => m.id === selectedMetric)?.label]}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey={selectedMetric} 
+                            stroke="#10b981" 
+                            strokeWidth={3} 
+                            dot={{ fill: '#10b981', r: 4 }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -563,6 +613,7 @@ function MeasurementForm({ clientId, activityId, onDone }: { clientId: string; a
       });
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ['client-body-progress', clientId] });
+      qc.invalidateQueries({ queryKey: ['client-progress', clientId] });
       onDone();
     } catch (err) {
       console.error("Error saving measurement:", err);
