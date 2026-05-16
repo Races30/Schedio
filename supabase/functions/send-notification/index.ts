@@ -33,13 +33,18 @@ Deno.serve(async (req) => {
   try {
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const SERVICE_ROLE_KEY = Deno.env.get("SERVICE_ROLE_KEY");
 
-    if (!RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not set");
+    if (!RESEND_API_KEY || !SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      throw new Error("Missing required environment variables: " + 
+        JSON.stringify({
+          hasResend: !!RESEND_API_KEY,
+          hasUrl: !!SUPABASE_URL, 
+          hasKey: !!SERVICE_ROLE_KEY
+        }));
     }
 
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const payload = await req.json();
     
     // Triggered by Supabase Webhook (payload.record) or manually (payload.notification_id)

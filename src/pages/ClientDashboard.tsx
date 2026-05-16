@@ -16,8 +16,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Calendar, Clock, Play, TrendingUp, CheckCircle2, Dumbbell,
-  Inbox, ChevronRight, SkipForward,
+  Inbox, ChevronRight, SkipForward, Ruler, Weight, Plus, ArrowUp, ArrowDown, Minus, Info
 } from 'lucide-react';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { Client, ExerciseProgress, MEASURE_UNIT, WorkoutPlan } from '@/types';
 import { ProgressIndicator } from '@/components/coach/ProgressIndicator';
 import { SessionNegotiationPanel } from '@/components/coach/SessionNegotiationPanel';
@@ -134,6 +141,22 @@ export default function ClientDashboard() {
     },
     enabled: !!client,
   });
+
+  // Progress entries (weight and measurements)
+  const { data: bodyProgress = [] } = useQuery({
+    queryKey: ['client-body-progress', client?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('progress_entries')
+        .select('*')
+        .eq('client_id', client!.id)
+        .order('measurement_date', { ascending: true });
+      return data || [];
+    },
+    enabled: !!client,
+  });
+
+  const [isAddingMeasurement, setIsAddingMeasurement] = useState(false);
 
   if (!client) return null;
 
@@ -378,6 +401,98 @@ export default function ClientDashboard() {
           </div>
         </motion.div>
 
+        {/* ─ Section: Misure Corporee ─ */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }}
+          className="bg-white dark:bg-card border border-border rounded-2xl p-4 shadow-sm space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Ruler className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-semibold">Le mie misure</span>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              onClick={() => setIsAddingMeasurement(true)}
+            >
+              <Plus className="w-3 h-3" /> Aggiungi
+            </Button>
+          </div>
+
+          <AnimatePresence>
+            {isAddingMeasurement && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 border border-emerald-100 rounded-xl bg-emerald-50/30 mb-4">
+                  <MeasurementForm 
+                    clientId={client.id} 
+                    activityId={client.activity_id} 
+                    onDone={() => setIsAddingMeasurement(false)} 
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {bodyProgress.length > 0 ? (
+            <div className="space-y-6">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <LatestMeasurementDisplay entries={bodyProgress} />
+              </div>
+
+              {/* Weight Chart */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Weight className="w-3 h-3" /> Andamento Peso (kg)
+                </div>
+                <div className="h-48 w-full">
+                  {bodyProgress.length >= 2 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={bodyProgress.slice(-10)}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis 
+                          dataKey="measurement_date" 
+                          tick={{ fontSize: 10 }} 
+                          tickFormatter={(date) => format(new Date(date), 'dd MMM', { locale: it })}
+                        />
+                        <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          labelFormatter={(date) => format(new Date(date), 'dd MMMM yyyy', { locale: it })}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="weight" 
+                          stroke="#10b981" 
+                          strokeWidth={3} 
+                          dot={{ fill: '#10b981', r: 4 }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center border border-dashed rounded-xl bg-muted/20 text-xs text-muted-foreground text-center p-4">
+                      Aggiungi almeno 2 misurazioni per vedere il grafico dell'andamento.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground space-y-2">
+              <Ruler className="w-8 h-8 mx-auto opacity-20" />
+              <p className="text-sm">Inizia a tracciare i tuoi progressi fisici!</p>
+            </div>
+          )}
+        </motion.div>
+
         {/* ─ Card 5: Sessioni (proposals + confirmed) ─ */}
         <motion.div
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
@@ -415,6 +530,141 @@ export default function ClientDashboard() {
       </AnimatePresence>
     </div>
   );
+}
+
+/* ── Helper: Body Measurement Form ── */
+function MeasurementForm({ clientId, activityId, onDone }: { clientId: string; activityId: string; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [loading, setLoading] = useState(false);
+  const [weight, setWeight] = useState('');
+  const [waist, setWaist] = useState('');
+  const [hips, setHips] = useState('');
+  const [chest, setChest] = useState('');
+  const [arms, setArms] = useState('');
+  const [thighs, setThighs] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!weight) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('progress_entries').insert({
+        client_id: clientId,
+        activity_id: activityId,
+        weight: Number(weight),
+        waist: waist ? Number(waist) : null,
+        hips: hips ? Number(hips) : null,
+        chest: chest ? Number(chest) : null,
+        arms: arms ? Number(arms) : null,
+        thighs: thighs ? Number(thighs) : null,
+        notes: notes || null,
+        measurement_date: new Date().toISOString().split('T')[0]
+      });
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ['client-body-progress', clientId] });
+      onDone();
+    } catch (err) {
+      console.error("Error saving measurement:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Peso (kg)</Label>
+          <Input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)} placeholder="es. 75.5" required className="h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Girovita (cm)</Label>
+          <Input type="number" step="0.1" value={waist} onChange={e => setWaist(e.target.value)} placeholder="es. 85" className="h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Fianchi (cm)</Label>
+          <Input type="number" step="0.1" value={hips} onChange={e => setHips(e.target.value)} placeholder="es. 95" className="h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Petto (cm)</Label>
+          <Input type="number" step="0.1" value={chest} onChange={e => setChest(e.target.value)} placeholder="es. 100" className="h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Braccia (cm)</Label>
+          <Input type="number" step="0.1" value={arms} onChange={e => setArms(e.target.value)} placeholder="es. 32" className="h-9" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase font-bold text-emerald-700">Cosce (cm)</Label>
+          <Input type="number" step="0.1" value={thighs} onChange={e => setThighs(e.target.value)} placeholder="es. 55" className="h-9" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-emerald-700">Note</Label>
+        <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Come ti senti?" className="h-9" />
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Button type="submit" disabled={loading} className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-9">
+          {loading ? 'Salvataggio...' : 'Salva'}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onDone} className="h-9">Annulla</Button>
+      </div>
+    </form>
+  );
+}
+
+/* ── Helper: Latest Measurement Display ── */
+function LatestMeasurementDisplay({ entries }: { entries: any[] }) {
+  const latest = entries[entries.length - 1];
+  const previous = entries.length > 1 ? entries[entries.length - 2] : null;
+
+  if (!latest) return null;
+
+  const stats = [
+    { label: 'Peso', value: latest.weight, prev: previous?.weight, unit: 'kg', isWeight: true },
+    { label: 'Girovita', value: latest.waist, prev: previous?.waist, unit: 'cm' },
+    { label: 'Fianchi', value: latest.hips, prev: previous?.hips, unit: 'cm' },
+    { label: 'Petto', value: latest.chest, prev: previous?.chest, unit: 'cm' },
+    { label: 'Braccia', value: latest.arms, prev: previous?.arms, unit: 'cm' },
+    { label: 'Cosce', value: latest.thighs, prev: previous?.thighs, unit: 'cm' },
+  ].filter(s => s.value !== null);
+
+  return (
+    <>
+      {stats.map(s => (
+        <div key={s.label} className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-xl p-3">
+          <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 mb-1">{s.label}</div>
+          <div className="flex items-end justify-between">
+            <div className="text-lg font-bold">
+              {s.value} <span className="text-[10px] font-normal text-muted-foreground">{s.unit}</span>
+            </div>
+            {s.prev !== undefined && s.prev !== null && (
+              <div className="flex items-center gap-0.5 mb-1">
+                <TrendArrow current={s.value} previous={s.prev} isWeight={s.isWeight} />
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function TrendArrow({ current, previous, isWeight }: { current: number; previous: number; isWeight?: boolean }) {
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.1) return <Minus className="w-3 h-3 text-muted-foreground" />;
+
+  if (isWeight) {
+    // For weight, decrease is positive (emerald), increase is negative (rose)
+    return diff < 0 
+      ? <ArrowDown className="w-3 h-3 text-emerald-500" /> 
+      : <ArrowUp className="w-3 h-3 text-rose-500" />;
+  }
+
+  // For other measures, just use grey as requested
+  return diff < 0 
+    ? <ArrowDown className="w-3 h-3 text-muted-foreground" /> 
+    : <ArrowUp className="w-3 h-3 text-muted-foreground" />;
 }
 
 /* ── Mini Calendar ── */
