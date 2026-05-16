@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, User } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -44,6 +44,17 @@ export default function Login() {
         <div className="glass-card p-8">
           <h1 className="text-2xl font-bold mb-1">Bentornato</h1>
           <p className="text-muted-foreground mb-6">Accedi al tuo account</p>
+
+          <div className="mb-6 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+            <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <User className="h-5 w-5" />
+            </div>
+            <div className="space-y-1 leading-relaxed">
+              <p className="font-semibold">👤 Sei un cliente?</p>
+              <p>Accedi con l'email e la password che hai scelto quando hai accettato l'invito del tuo trainer.</p>
+              <p>Non hai ancora un account? Controlla la tua email — il tuo trainer ti ha inviato un link di invito.</p>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

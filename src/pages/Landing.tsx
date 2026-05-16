@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Calendar, Users, Clock, Star, ArrowRight, Scissors, CheckCircle2, ChevronDown, UserPlus, Dumbbell, Package, TrendingUp } from 'lucide-react';
+import { Calendar, Users, Clock, Star, ArrowRight, Scissors, CheckCircle2, ChevronDown, UserPlus, Dumbbell, Package, TrendingUp, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { SHOW_SALON } from '@/config';
@@ -53,7 +53,7 @@ export default function Landing() {
           <span className="font-display text-xl font-bold text-foreground">Schedio</span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => navigate('/login')}>Accedi</Button>
-            <Button variant="hero" onClick={() => navigate('/register')}>Inizia gratis</Button>
+            <Button variant="hero" onClick={() => navigate('/register')}>Per trainer</Button>
           </div>
         </div>
       </nav>
@@ -180,6 +180,23 @@ export default function Landing() {
           <p className="text-muted-foreground mb-8">Inizia gratis oggi. Nessuna carta richiesta.</p>
           <Button variant="hero" size="lg" onClick={() => navigate('/register')}>
             Inizia ora <ArrowRight className="w-5 h-5" />
+          </Button>
+        </div>
+      </section>
+
+      {/* Client access */}
+      <section className="py-16 px-4 bg-[#f0fdf4]">
+        <div className="container mx-auto max-w-2xl text-center">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <User className="h-6 w-6" />
+          </div>
+          <h2 className="text-3xl font-bold mb-4 text-emerald-950">Sei un cliente?</h2>
+          <p className="text-emerald-900/80 mb-8 text-base md:text-lg leading-relaxed">
+            Il tuo personal trainer ti ha inviato un link via email. Usa quel link per creare il tuo account la prima volta.
+            Poi torna qui e clicca 'Accedi' per entrare nella tua dashboard.
+          </p>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" size="lg" onClick={() => navigate('/login')}>
+            Accedi come cliente
           </Button>
         </div>
       </section>

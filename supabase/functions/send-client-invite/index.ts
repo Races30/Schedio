@@ -76,6 +76,11 @@ Deno.serve(async (req) => {
                   </a>
                 </div>
 
+                <p style="margin: 0 0 24px; color: #4b5563; font-size: 15px; line-height: 1.6;">
+                  Dopo aver creato il tuo account, per accedere in futuro vai su schedio-five.vercel.app,
+                  clicca 'Accedi' e inserisci la tua email e password.
+                </p>
+
                 <!-- Features -->
                 <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
                   <p style="margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px;">Con Schedio puoi:</p>
