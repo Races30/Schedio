@@ -908,24 +908,38 @@ function WorkoutPlayer({ plan, clientId, sessionId, onClose }: { plan: WorkoutPl
 
   const doNextSet = () => {
     if (!ex) return;
-    if (currentSet < ex.sets) {
-      setCurrentSet(s => s + 1);
-      setPhase('exercise');
-      setTimerSecs(0);
-      setTimerActive(false);
-    } else if (currentIdx < exercises.length - 1) {
+
+    // Vai al prossimo esercizio nella stessa serie
+    if (currentIdx < exercises.length - 1) {
       setCurrentIdx(i => i + 1);
-      setCurrentSet(1);
       setPhase('exercise');
       setTimerSecs(0);
       setTimerActive(false);
     } else {
-      finishWorkout();
+      // Finiti tutti gli esercizi di questa serie
+      // Vai alla serie successiva del primo esercizio
+      const nextSet = currentSet + 1;
+      const maxSets = Math.max(...exercises.map(e => e.sets));
+
+      if (nextSet <= maxSets) {
+        setCurrentIdx(0);
+        setCurrentSet(nextSet);
+        setPhase('exercise');
+        setTimerSecs(0);
+        setTimerActive(false);
+      } else {
+        // Tutte le serie completate
+        finishWorkout();
+      }
     }
   };
 
   const startRest = () => {
-    if (currentSet < ex.sets || currentIdx < exercises.length - 1) {
+    const isLastExercise = currentIdx === exercises.length - 1;
+    const maxSets = Math.max(...exercises.map(e => e.sets));
+    const isLastSet = currentSet >= maxSets;
+
+    if (!isLastExercise || !isLastSet) {
       setPhase('rest');
       setRestSecs(ex.rest_secs || 60);
       setTimerActive(true);
@@ -947,9 +961,9 @@ function WorkoutPlayer({ plan, clientId, sessionId, onClose }: { plan: WorkoutPl
     setTimeout(() => setPhase('feedback'), 2000);
   };
 
-  const progress = exercises.length > 0
-    ? ((currentIdx * (ex?.sets ?? 1) + (currentSet - 1)) / exercises.reduce((t, e) => t + e.sets, 0)) * 100
-    : 0;
+  const totalSets = exercises.reduce((t, e) => t + e.sets, 0);
+  const completedSets = (currentSet - 1) * exercises.length + currentIdx;
+  const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
 
   const isTimed = ex?.measure_type === 'secondi';
 
@@ -1026,11 +1040,15 @@ function WorkoutPlayer({ plan, clientId, sessionId, onClose }: { plan: WorkoutPl
               <SkipForward className="w-4 h-4 mr-1" /> Salta recupero
             </Button>
           </div>
-          {exercises[currentIdx + 1] && (
+          {currentIdx < exercises.length - 1 ? (
             <p className="text-xs text-muted-foreground text-center">
               Prossimo: <strong>{exercises[currentIdx + 1]?.exercise_name}</strong>
             </p>
-          )}
+          ) : currentSet < Math.max(...exercises.map(e => e.sets)) ? (
+            <p className="text-xs text-muted-foreground text-center">
+              Prossima serie: <strong>{exercises[0]?.exercise_name}</strong>
+            </p>
+          ) : null}
         </div>
       ) : (
         /* ─ Exercise phase ─ */
