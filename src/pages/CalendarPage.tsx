@@ -50,7 +50,7 @@ export default function CalendarPage() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('week');
-  const [isMobileCalendar, setIsMobileCalendar] = useState(false);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
   const [editAppt, setEditAppt] = useState<Appointment | null>(null);
@@ -64,7 +64,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (window.innerWidth < 640) {
       setViewMode('day');
-      setIsMobileCalendar(true);
+
     }
   }, []);
 
@@ -318,12 +318,10 @@ export default function CalendarPage() {
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Giorno
             </button>
-            {!isMobileCalendar && (
-              <button type="button" onClick={() => setViewMode('week')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-                Settimana
-              </button>
-            )}
+            <button type="button" onClick={() => setViewMode('week')}
+              className={`hidden sm:inline-flex px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+              Settimana
+            </button>
           </div>
         </div>
       </div>
