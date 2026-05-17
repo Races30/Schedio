@@ -395,18 +395,20 @@ export default function CalendarPage() {
                           <div key={appt.id} role="button" tabIndex={0}
                             onClick={(e) => { e.stopPropagation(); if (!isCoach) openEditAppt(appt); }}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!isCoach) openEditAppt(appt); } }}
-                            className={`rounded-md text-[11px] sm:text-xs cursor-pointer hover:opacity-80 overflow-hidden ${statusColor(appt.status)}`}
+                            className={`w-full min-w-0 rounded-md text-[11px] sm:text-xs cursor-pointer hover:opacity-80 overflow-hidden ${statusColor(appt.status)}`}
                             style={{
                               backgroundColor: apptColor + '20',
                               height: `${(isCoachSession ? 1 : totalSlots) * SLOT_HEIGHT - 4}px`,
                               position: 'relative',
                               zIndex: 10,
                               padding: '2px 6px',
+                              width: '100%',
+                              minWidth: 0,
                             }}>
-                            <div className="font-medium truncate leading-4" style={{ color: apptColor }}>
+                            <div className="truncate text-xs font-medium leading-4" style={{ color: apptColor }}>
                               {appt.client?.name || appt.client_name || 'Cliente'}
                             </div>
-                            <div className="truncate text-muted-foreground leading-4">
+                            <div className="truncate text-xs text-muted-foreground leading-4">
                               {isCoachSession ? formatTime(appt.start_time) : `${formatTime(appt.start_time)} - ${formatTime(appt.end_time)}`}
                               {emp && <span className="ml-1">• {emp.name}</span>}
                             </div>
