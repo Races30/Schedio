@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +50,7 @@ export default function CalendarPage() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const userSelectedDay = useRef(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
@@ -62,10 +63,22 @@ export default function CalendarPage() {
   const isCoach = activity?.category === 'coach';
 
   useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        setViewMode('day');
+      } else {
+        if (!userSelectedDay.current) {
+          setViewMode('week');
+        }
+      }
+    };
+
     if (window.innerWidth < 640) {
       setViewMode('day');
-
     }
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -314,11 +327,11 @@ export default function CalendarPage() {
             Oggi
           </Button>
           <div className="inline-flex bg-muted rounded-lg p-1">
-            <button type="button" onClick={() => setViewMode('day')}
+            <button type="button" onClick={() => { userSelectedDay.current = true; setViewMode('day'); }}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Giorno
             </button>
-            <button type="button" onClick={() => setViewMode('week')}
+            <button type="button" onClick={() => { userSelectedDay.current = false; setViewMode('week'); }}
               className={`hidden sm:inline-flex px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
               Settimana
             </button>
