@@ -381,7 +381,7 @@ export default function CalendarPage() {
                         if (!isCoach && !busy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openNewAppt(dateStr, time); }
                       }}
                       className={`border-l border-border/50 p-0.5 transition-colors relative ${isNow ? 'bg-primary/5' : ''} ${isBuffer ? 'bg-warning/10' : busy ? 'bg-muted/20' : 'cursor-pointer hover:bg-primary/5'}`}
-                      style={{ minHeight: `${SLOT_HEIGHT}px` }}>
+                      style={{ minHeight: `${SLOT_HEIGHT}px`, position: 'relative' }}>
                       {isBuffer && slotAppts.length === 0 && (
                         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, currentColor 3px, currentColor 4px)' }} />
                       )}
@@ -395,15 +395,16 @@ export default function CalendarPage() {
                           <div key={appt.id} role="button" tabIndex={0}
                             onClick={(e) => { e.stopPropagation(); if (!isCoach) openEditAppt(appt); }}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); if (!isCoach) openEditAppt(appt); } }}
-                            className={`w-full min-w-0 rounded-md text-[11px] sm:text-xs cursor-pointer hover:opacity-80 overflow-hidden ${statusColor(appt.status)}`}
+                            className={`rounded-md text-[11px] sm:text-xs cursor-pointer hover:opacity-80 overflow-hidden ${statusColor(appt.status)}`}
                             style={{
                               backgroundColor: apptColor + '20',
                               height: `${(isCoachSession ? 1 : totalSlots) * SLOT_HEIGHT - 4}px`,
-                              position: 'relative',
+                              position: 'absolute',
+                              top: '2px',
+                              left: '2px',
+                              right: '2px',
                               zIndex: 10,
                               padding: '2px 6px',
-                              width: '100%',
-                              minWidth: 0,
                             }}>
                             <div className="truncate text-xs font-medium leading-4" style={{ color: apptColor }}>
                               {appt.client?.name || appt.client_name || 'Cliente'}
